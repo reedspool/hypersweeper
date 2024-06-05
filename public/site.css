@@ -1,0 +1,34 @@
+:root {
+    --beat: 0.2em;
+}
+
+html,
+body {
+}
+
+.grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--beat);
+    flex-wrap: nowrap;
+}
+
+.grid__row {
+    display: flex;
+    flex-direction: row;
+    gap: var(--beat);
+    flex-wrap: nowrap;
+}
+
+.grid__cell {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 5ch;
+    aspect-ratio: 1;
+}
+
+.grid__cell--mine {
+    background-color: lightgray;
+}
