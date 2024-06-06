@@ -67,3 +67,4 @@ export const Grid = ({ contents }: WithContents) =>
     html`<form hx-post="/reveal.html" class="grid">${contents}</form>`;
 
 export const GameOverMessage = () => html` <dialog open>Game Over :(</dialog> `;
+export const GameWonMessage = () => html` <dialog open>Game Won :)</dialog> `;

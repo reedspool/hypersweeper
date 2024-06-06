@@ -2,7 +2,13 @@ import express, { json, urlencoded } from "express";
 import type { ErrorRequestHandler } from "express";
 import type { Grid as GridType, GridCell as GridCellType } from "./types";
 import { randIntBetween } from "./utilities";
-import { GameOverMessage, Grid, GridCell, GridRow } from "./html";
+import {
+    GameOverMessage,
+    GameWonMessage,
+    Grid,
+    GridCell,
+    GridRow,
+} from "./html";
 
 const app = express();
 const port = process.env.PORT || 3003;
@@ -105,6 +111,8 @@ app.post("/reveal.html", (req, res) => {
     const grid: GridType = [];
     let maxColumn = 0;
     let maxRow = 0;
+    let numMines = 0;
+    let numHidden = 0;
     grid__cell
         .map((value: string) => JSON.parse(value))
         .forEach((cell: GridCellType) => {
@@ -113,17 +121,21 @@ app.post("/reveal.html", (req, res) => {
             grid[y][x] = cell;
             maxColumn = Math.max(maxColumn, x);
             maxRow = Math.max(maxRow, y);
+            if (cell.type === "mine") numMines++;
+            if (!cell.revealed) numHidden++;
         });
 
     const numCols = maxColumn + 1;
     const numRows = maxRow + 1;
+    let gameState = "playing";
+    if (numHidden === 0) gameState = "gameOver";
+    if (numHidden === numMines) gameState = "gameWon";
 
     const selectedParsed: GridCellType = JSON.parse(selected);
     const selectedCell = grid[selectedParsed.y][selectedParsed.x];
 
-    let gameOver = false;
     if (selectedCell.type === "mine") {
-        gameOver = true;
+        gameState = "gameOver";
         grid.forEach((row) => row.forEach((cell) => (cell.revealed = true)));
     } else {
         const toRevealIfTouchingNone: GridCellType[] = [selectedCell];
@@ -132,6 +144,7 @@ app.post("/reveal.html", (req, res) => {
             if (!current || current.revealed || current.type !== "empty")
                 continue;
             current.revealed = true;
+            numHidden--;
             if (current.touchingMines > 0) continue;
             if (current.x > 0)
                 toRevealIfTouchingNone.push(grid[current.y][current.x - 1]);
@@ -144,7 +157,15 @@ app.post("/reveal.html", (req, res) => {
         } while (toRevealIfTouchingNone.length > 0);
     }
 
-    res.send(htmlifyGrid(grid) + (gameOver ? GameOverMessage() : ""));
+    if (numHidden === numMines) gameState = "gameWon";
+    res.send(
+        htmlifyGrid(grid) +
+            (gameState === "gameOver"
+                ? GameOverMessage()
+                : gameState === "gameWon"
+                  ? GameWonMessage()
+                  : ""),
+    );
 });
 
 app.use(express.static("public"));
