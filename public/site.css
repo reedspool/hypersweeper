@@ -6,17 +6,28 @@ html,
 body {
 }
 
+button {
+    cursor: pointer;
+}
+
 .grid {
     display: flex;
     flex-direction: column;
-    gap: var(--beat);
     flex-wrap: nowrap;
+}
+
+.grid legend {
+    display: none;
+}
+
+.grid fieldset {
+    padding: 0;
+    border: none;
 }
 
 .grid__row {
     display: flex;
     flex-direction: row;
-    gap: var(--beat);
     flex-wrap: nowrap;
 }
 
@@ -27,8 +38,26 @@ body {
     align-items: center;
     width: 5ch;
     aspect-ratio: 1;
+    background-color: #a8a8a8;
+    border: 1px solid #9a9a9a;
+}
+
+.grid__cell button {
+    border: none;
+    height: 100%;
+    width: 100%;
+    display: inline-block;
+    box-shadow:
+        rgba(0, 0, 0, 0.09) 0px 2px 1px,
+        rgba(0, 0, 0, 0.09) 0px 4px 2px,
+        rgba(0, 0, 0, 0.09) 0px 8px 4px,
+        rgba(0, 0, 0, 0.09) 0px 16px 8px,
+        rgba(0, 0, 0, 0.09) 0px 32px 16px;
 }
 
 .grid__cell--mine {
-    background-color: lightgray;
+    /* background-color: lightgray; */
+}
+
+.grid__cell.grid__cell--hidden {
 }

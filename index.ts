@@ -2,7 +2,7 @@ import express, { json, urlencoded } from "express";
 import type { ErrorRequestHandler } from "express";
 import type { Grid as GridType, GridCell as GridCellType } from "./types";
 import { randIntBetween } from "./utilities";
-import { Grid, GridCell, GridRow } from "./html";
+import { GameOverMessage, Grid, GridCell, GridRow } from "./html";
 
 const app = express();
 const port = process.env.PORT || 3003;
@@ -11,6 +11,8 @@ app.use(json());
 app.use(urlencoded({ extended: true }));
 
 app.get("/newGame.html", async (req, res) => {
+    // TODO: Save my settings somewhere. Cookie? Localstorage?
+    // TODO: Don't actually generate the board here. Do that on the first reveal. THat means storing the data of the selected game parameters somewhere else?
     const { rows, cols, mines } = req.query;
     const numRows: number = Number(rows) || 10;
     const numCols: number = Number(cols) || 10;
@@ -83,11 +85,6 @@ app.get("/newGame.html", async (req, res) => {
         }
     }
 
-    for (let y = 0; y < numRows; y++) {
-        const row: GridType[number] = [];
-        grid.push(row);
-        for (let x = 0; x < numCols; x++) {}
-    }
     return res.send(htmlifyGrid(grid));
 });
 
@@ -104,18 +101,50 @@ const htmlifyGrid = (grid: GridType): string =>
     });
 
 app.post("/reveal.html", (req, res) => {
-    debugger;
-    const { grid__cell } = req.body;
+    const { grid__cell, selected } = req.body;
     const grid: GridType = [];
+    let maxColumn = 0;
+    let maxRow = 0;
     grid__cell
         .map((value: string) => JSON.parse(value))
         .forEach((cell: GridCellType) => {
             const { y, x } = cell;
             if (!grid[y]) grid[y] = [];
             grid[y][x] = cell;
+            maxColumn = Math.max(maxColumn, x);
+            maxRow = Math.max(maxRow, y);
         });
 
-    res.send(htmlifyGrid(grid));
+    const numCols = maxColumn + 1;
+    const numRows = maxRow + 1;
+
+    const selectedParsed: GridCellType = JSON.parse(selected);
+    const selectedCell = grid[selectedParsed.y][selectedParsed.x];
+
+    let gameOver = false;
+    if (selectedCell.type === "mine") {
+        gameOver = true;
+        grid.forEach((row) => row.forEach((cell) => (cell.revealed = true)));
+    } else {
+        const toRevealIfTouchingNone: GridCellType[] = [selectedCell];
+        do {
+            const current = toRevealIfTouchingNone.shift();
+            if (!current || current.revealed || current.type !== "empty")
+                continue;
+            current.revealed = true;
+            if (current.touchingMines > 0) continue;
+            if (current.x > 0)
+                toRevealIfTouchingNone.push(grid[current.y][current.x - 1]);
+            if (current.x < numCols - 1)
+                toRevealIfTouchingNone.push(grid[current.y][current.x + 1]);
+            if (current.y > 0)
+                toRevealIfTouchingNone.push(grid[current.y - 1][current.x]);
+            if (current.y < numRows - 1)
+                toRevealIfTouchingNone.push(grid[current.y + 1][current.x]);
+        } while (toRevealIfTouchingNone.length > 0);
+    }
+
+    res.send(htmlifyGrid(grid) + (gameOver ? GameOverMessage() : ""));
 });
 
 app.use(express.static("public"));
