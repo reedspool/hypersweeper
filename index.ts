@@ -1,6 +1,11 @@
 import express, { json, urlencoded } from "express";
 import type { ErrorRequestHandler } from "express";
-import type { Grid as GridType, GridCell as GridCellType } from "./types";
+import cookieParser from "cookie-parser";
+import type {
+    Grid as GridType,
+    GridCell as GridCellType,
+    GameSettings,
+} from "./types";
 import { randIntBetween } from "./utilities";
 import {
     GameOverMessage,
@@ -8,21 +13,46 @@ import {
     Grid,
     GridCell,
     GridRow,
+    NewGameForm,
+    Page,
 } from "./html";
 
 const app = express();
 const port = process.env.PORT || 3003;
 
+const cookieName = "minesweeper";
+app.use(cookieParser());
 app.use(json());
 app.use(urlencoded({ extended: true }));
 
+const DEFAULTS: GameSettings = {
+    numRows: 10,
+    numCols: 10,
+    numMines: 5,
+};
+
+app.get("/", async (req, res) => {
+    let cookieData = { ...DEFAULTS };
+    if (req?.cookies[cookieName]) {
+        try {
+            cookieData = JSON.parse(req.cookies[cookieName]);
+        } catch (error) {
+            console.log("Oops!", error);
+            // Do nothing, just use defaults, maybe add telemetry in the future
+        }
+    }
+    res.send(Page({ contents: NewGameForm(cookieData) }));
+});
+
 app.get("/newGame.html", async (req, res) => {
-    // TODO: Save my settings somewhere. Cookie? Localstorage?
     // TODO: Don't actually generate the board here. Do that on the first reveal. THat means storing the data of the selected game parameters somewhere else?
     const { rows, cols, mines } = req.query;
-    const numRows: number = Number(rows) || 10;
-    const numCols: number = Number(cols) || 10;
-    const numMines: number = Number(mines) || 5;
+    const numRows: number = Number(rows) || DEFAULTS.numRows;
+    const numCols: number = Number(cols) || DEFAULTS.numCols;
+    const numMines: number = Number(mines) || DEFAULTS.numMines;
+    res.cookie(cookieName, JSON.stringify({ numMines, numRows, numCols }), {
+        maxAge: 1000 * 60 * 60 * 24 * 365 * 10,
+    });
     const grid: GridType = Array(numRows)
         .fill(1)
         .map((_, y) =>
@@ -163,8 +193,8 @@ app.post("/reveal.html", (req, res) => {
             (gameState === "gameOver"
                 ? GameOverMessage()
                 : gameState === "gameWon"
-                  ? GameWonMessage()
-                  : ""),
+                ? GameWonMessage()
+                : ""),
     );
 });
 

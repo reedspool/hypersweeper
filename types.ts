@@ -6,3 +6,9 @@ export type Empty = Cell & { type: "empty"; touchingMines: number };
 export type GridCell = Mine | Empty | Flag | Question;
 export type GridRow = GridCell[];
 export type Grid = GridRow[];
+
+export type GameSettings = {
+    numRows: number;
+    numCols: number;
+    numMines: number;
+};
