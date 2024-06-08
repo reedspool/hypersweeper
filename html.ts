@@ -55,6 +55,7 @@ export const Page = ({ contents }: WithContents) => html`
                 type="text/css"
                 media="screen"
             />
+            <script src="/service-worker-registrar.js"></script>
         </head>
 
         <body>

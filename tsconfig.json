@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     // Enable latest features
-    "lib": ["ESNext", "DOM"],
+    // WebWorker for service worker typing
+    // See https://github.com/microsoft/TypeScript/issues/11781#issuecomment-2019975124
+    "lib": ["ESNext", "DOM", "WebWorker"],
     "target": "ESNext",
     "module": "ESNext",
     "moduleDetection": "force",

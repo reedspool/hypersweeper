@@ -2,6 +2,10 @@
   "name": "minesweeper-hypermedia",
   "module": "index.ts",
   "type": "module",
+  "scripts": {
+    "build-frontend": "bun build service-worker-registrar.ts service-worker.ts --target=browser --outdir=public",
+    "build-frontend:dev": "bun build service-worker-registrar.ts service-worker.ts --target=browser --outdir=public --watch  --no-clear-screen"
+  },
   "devDependencies": {
     "@types/bun": "^1.1.3",
     "@types/cookie-parser": "^1.4.7",
