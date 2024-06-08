@@ -74,7 +74,7 @@ export const NewGameForm = ({
     numCols,
     numRows,
 }: GameSettings) => html`
-    <form hx-get="/newGame.html">
+    <form hx-get="/newGame.html" hx-swap="outerHTML">
         <label>
             # Rows
             <input type="number" name="rows" value="${numRows}" />
@@ -144,7 +144,14 @@ export const GridRow = ({
 `;
 
 export const Grid = ({ contents }: WithContents) =>
-    html`<form hx-post="/reveal.html" class="grid">${contents}</form>`;
+    html`<form hx-post="/reveal.html" hx-swap="outerHTML" class="grid">
+        ${contents}
+    </form>`;
 
-export const GameOverMessage = () => html` <dialog open>Game Over :(</dialog> `;
-export const GameWonMessage = () => html` <dialog open>Game Won :)</dialog> `;
+/* TODO Actually do dialogs correctly https://hidde.blog/dialog-modal-popover-differences/ */
+export const GameOverMessage = () => html`
+    <dialog open class="toast">Game Over :(</dialog>
+`;
+export const GameWonMessage = () => html`
+    <dialog open class="toast">Game Won :)</dialog>
+`;

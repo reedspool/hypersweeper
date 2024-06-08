@@ -62,3 +62,8 @@ button {
 
 .grid__cell.grid__cell--hidden {
 }
+
+.toast {
+    position: fixed;
+    top: calc(var(--beat) * 4);
+}
