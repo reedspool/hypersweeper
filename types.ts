@@ -12,3 +12,10 @@ export type GameSettings = {
     numCols: number;
     numMines: number;
 };
+
+export type GameState = {
+    grid: Grid;
+    settings: GameSettings;
+    numHidden: number;
+    state: "gameOver" | "gameWon" | "playing";
+};

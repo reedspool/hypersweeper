@@ -16,6 +16,8 @@ import {
     NewGameForm,
     Page,
 } from "./html";
+import { cellListToGameState, gameStateToHtml, gridToHtml } from "./munge";
+import { select } from "./game";
 
 const app = express();
 const port = process.env.PORT || 3003;
@@ -121,81 +123,17 @@ app.get("/newGame.html", async (req, res) => {
         }
     }
 
-    return res.send(htmlifyGrid(grid));
+    return res.send(gridToHtml(grid));
 });
-
-const htmlifyGrid = (grid: GridType): string =>
-    Grid({
-        contents: grid
-            .map((row, index) =>
-                GridRow({
-                    contents: row.map((cell) => GridCell(cell)).join(""),
-                    row: index,
-                }),
-            )
-            .join(""),
-    });
 
 app.post("/reveal.html", (req, res) => {
     const { grid__cell, selected } = req.body;
-    const grid: GridType = [];
-    let maxColumn = 0;
-    let maxRow = 0;
-    let numMines = 0;
-    let numHidden = 0;
-    grid__cell
-        .map((value: string) => JSON.parse(value))
-        .forEach((cell: GridCellType) => {
-            const { y, x } = cell;
-            if (!grid[y]) grid[y] = [];
-            grid[y][x] = cell;
-            maxColumn = Math.max(maxColumn, x);
-            maxRow = Math.max(maxRow, y);
-            if (cell.type === "mine") numMines++;
-            if (!cell.revealed) numHidden++;
-        });
-
-    const numCols = maxColumn + 1;
-    const numRows = maxRow + 1;
-    let gameState = "playing";
-    if (numHidden === 0) gameState = "gameOver";
-    if (numHidden === numMines) gameState = "gameWon";
-
-    const selectedParsed: GridCellType = JSON.parse(selected);
-    const selectedCell = grid[selectedParsed.y][selectedParsed.x];
-
-    if (selectedCell.type === "mine") {
-        gameState = "gameOver";
-        grid.forEach((row) => row.forEach((cell) => (cell.revealed = true)));
-    } else {
-        const toRevealIfTouchingNone: GridCellType[] = [selectedCell];
-        do {
-            const current = toRevealIfTouchingNone.shift();
-            if (!current || current.revealed || current.type !== "empty")
-                continue;
-            current.revealed = true;
-            numHidden--;
-            if (current.touchingMines > 0) continue;
-            if (current.x > 0)
-                toRevealIfTouchingNone.push(grid[current.y][current.x - 1]);
-            if (current.x < numCols - 1)
-                toRevealIfTouchingNone.push(grid[current.y][current.x + 1]);
-            if (current.y > 0)
-                toRevealIfTouchingNone.push(grid[current.y - 1][current.x]);
-            if (current.y < numRows - 1)
-                toRevealIfTouchingNone.push(grid[current.y + 1][current.x]);
-        } while (toRevealIfTouchingNone.length > 0);
-    }
-
-    if (numHidden === numMines) gameState = "gameWon";
-    res.send(
-        htmlifyGrid(grid) +
-            (gameState === "gameOver"
-                ? GameOverMessage()
-                : gameState === "gameWon"
-                ? GameWonMessage()
-                : ""),
+    const state = cellListToGameState(
+        grid__cell.map((value: string) => JSON.parse(value)),
     );
+    const selectedParsed: GridCellType = JSON.parse(selected);
+    select(state, selectedParsed);
+    res.send(gridToHtml(state.grid) + gameStateToHtml(state.state));
 });
 
 app.use(express.static("public"));
