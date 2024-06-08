@@ -2,27 +2,20 @@
 // See https://github.com/microsoft/TypeScript/issues/11781#issuecomment-2019975124
 // Note to self: Don't use just `serviceWorker` because that's an unsettable
 
-import { select } from "./game";
+import { DEFAULTS, newGrid, select } from "./game";
 import { GameState } from "./html";
-import { cellListToGameState, gameStateToHtml, gridToHtml } from "./munge";
+import {
+    cellListToGameState,
+    gameStateToHtml,
+    gridToHtml,
+    queryToSettings,
+} from "./munge";
 import type { GridCell } from "./types";
+import { cookieName } from "./web";
 
 // global already in this context :facepalm:
 const serviceWorkerSelf: ServiceWorkerGlobalScope & typeof globalThis =
     self as any;
-
-// Cookie utilities from PPK https://www.quirksmode.org/js/cookies.html
-// Adapted to take in cookie as a parameter
-function extractCookieByName(cookie: string, name: string) {
-    var nameEQ = name + "=";
-    var ca = cookie.split(";");
-    for (var i = 0; i < ca.length; i++) {
-        var c = ca[i];
-        while (c.charAt(0) == " ") c = c.substring(1, c.length);
-        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
-    }
-    return null;
-}
 
 // To refresh user's caches automatically, change the number in this name.
 // That will cause `deleteOldCaches` to clean up the past one. So users might
@@ -102,6 +95,44 @@ serviceWorkerSelf.addEventListener("activate", function (event) {
 });
 
 serviceWorkerSelf.addEventListener("fetch", async function (event) {
+    const url = new URL(event.request.url);
+    if (url.pathname.endsWith("newGame.html")) {
+        event.respondWith(
+            (async function () {
+                const url = new URL(event.request.url);
+                const query: { [key in string]: unknown } = {
+                    cols: url.searchParams.get("cols"),
+                    rows: url.searchParams.get("rows"),
+                    mines: url.searchParams.get("mines"),
+                };
+
+                const settings = queryToSettings(query);
+
+                // If service worker was installed cross-origin, wouldn't have
+                if (event.clientId) {
+                    const client = await serviceWorkerSelf.clients.get(
+                        event.clientId,
+                    );
+                    // Client might not exist e.g. if closed
+                    if (client)
+                        client.postMessage({
+                            type: "set-cookie",
+                            cookieName,
+                            cookieValue: settings,
+                        });
+                }
+
+                const headers = new Headers();
+                const response = new Response(gridToHtml(newGrid(settings)), {
+                    status: 200,
+                    statusText: "OK",
+                    headers,
+                });
+                return response;
+            })(),
+        );
+        return;
+    }
     if (event.request.url.endsWith("reveal.html")) {
         event.respondWith(
             (async function () {
@@ -131,6 +162,7 @@ serviceWorkerSelf.addEventListener("fetch", async function (event) {
                 return response;
             })(),
         );
+        return;
     }
 
     // Let the browser do its default thing for non-GET requests not matched above.

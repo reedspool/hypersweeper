@@ -1,5 +1,18 @@
 import type * as Type from "./types";
 import * as HTML from "./html";
+import { DEFAULTS } from "./game";
+
+export const queryToSettings = ({
+    rows,
+    cols,
+    mines,
+}: { [key in string]: unknown }): Type.GameSettings => {
+    const settings = { ...DEFAULTS };
+    if (Number.isSafeInteger(Number(rows))) settings.numRows = Number(rows);
+    if (Number.isSafeInteger(Number(cols))) settings.numCols = Number(cols);
+    if (Number.isSafeInteger(Number(mines))) settings.numMines = Number(mines);
+    return settings;
+};
 
 export const cellListToGameState: (cells: Type.GridCell[]) => Type.GameState = (
     cells,

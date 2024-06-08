@@ -1,4 +1,52 @@
+// utilities.ts
+var randInt = (max) => Math.floor(Math.random() * max);
+var randIntBetween = (min, max) => randInt(max - min) + min;
+
 // game.ts
+var DEFAULTS = {
+  numRows: 10,
+  numCols: 10,
+  numMines: 5
+};
+var newGrid = ({ numRows, numCols, numMines }) => {
+  const grid = Array(numRows).fill(1).map((_, y) => Array(numCols).fill(1).map((_2, x) => {
+    return {
+      type: "empty",
+      touchingMines: 0,
+      x,
+      y
+    };
+  }));
+  if (numMines > numRows * numCols)
+    throw new Error("Can't have more mines than cells");
+  for (var i = 0;i < numMines; i++) {
+    let x, y;
+    do {
+      y = randIntBetween(0, numRows);
+      x = randIntBetween(0, numCols);
+    } while (grid[y][x].type === "mine");
+    grid[y][x] = {
+      type: "mine",
+      x,
+      y
+    };
+    for (let yOffset = -1;yOffset <= 1; yOffset++) {
+      for (let xOffset = -1;xOffset <= 1; xOffset++) {
+        if (yOffset == 0 && xOffset == 0)
+          continue;
+        const yActual = y + yOffset;
+        const xActual = x + xOffset;
+        if (yActual < 0 || yActual >= numRows || xActual < 0 || xActual >= numCols)
+          continue;
+        const cell = grid[yActual][xActual];
+        if (cell.type !== "empty")
+          continue;
+        cell.touchingMines++;
+      }
+    }
+  }
+  return grid;
+};
 var select = (wholeState, selected) => {
   const selectedCell = wholeState.grid[selected.y][selected.x];
   const {
@@ -84,6 +132,20 @@ var GameState = ({
 }) => contents + stateMessage;
 
 // munge.ts
+var queryToSettings = ({
+  rows,
+  cols,
+  mines
+}) => {
+  const settings = { ...DEFAULTS };
+  if (Number.isSafeInteger(Number(rows)))
+    settings.numRows = Number(rows);
+  if (Number.isSafeInteger(Number(cols)))
+    settings.numCols = Number(cols);
+  if (Number.isSafeInteger(Number(mines)))
+    settings.numMines = Number(mines);
+  return settings;
+};
 var cellListToGameState = (cells) => {
   const grid = [];
   let maxColumn = 0;
@@ -127,6 +189,10 @@ var gridToHtml = (grid) => Grid({
   })).join("")
 });
 var gameStateToHtml = (state) => state === "gameOver" ? GameOverMessage() : state === "gameWon" ? GameWonMessage() : "";
+
+// web.ts
+var cookieName = "minesweeper";
+var cookieMaxAge = 315360000000;
 
 // service-worker.ts
 var serviceWorkerSelf = self;
@@ -180,6 +246,35 @@ serviceWorkerSelf.addEventListener("activate", function(event) {
   event.waitUntil(serviceWorkerSelf.clients.claim());
 });
 serviceWorkerSelf.addEventListener("fetch", async function(event) {
+  const url = new URL(event.request.url);
+  if (url.pathname.endsWith("newGame.html")) {
+    event.respondWith(async function() {
+      const url2 = new URL(event.request.url);
+      const query = {
+        cols: url2.searchParams.get("cols"),
+        rows: url2.searchParams.get("rows"),
+        mines: url2.searchParams.get("mines")
+      };
+      const settings = queryToSettings(query);
+      if (event.clientId) {
+        const client = await serviceWorkerSelf.clients.get(event.clientId);
+        if (client)
+          client.postMessage({
+            type: "set-cookie",
+            cookieName,
+            cookieValue: settings
+          });
+      }
+      const headers = new Headers;
+      const response = new Response(gridToHtml(newGrid(settings)), {
+        status: 200,
+        statusText: "OK",
+        headers
+      });
+      return response;
+    }());
+    return;
+  }
   if (event.request.url.endsWith("reveal.html")) {
     event.respondWith(async function() {
       const formData = await event.request.formData();
@@ -200,6 +295,7 @@ serviceWorkerSelf.addEventListener("fetch", async function(event) {
       });
       return response;
     }());
+    return;
   }
   if (event.request.method !== "GET")
     return;

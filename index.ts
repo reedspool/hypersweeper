@@ -7,13 +7,18 @@ import type {
     GameSettings,
 } from "./types";
 import { GameState, NewGameForm, Page } from "./html";
-import { cellListToGameState, gameStateToHtml, gridToHtml } from "./munge";
+import {
+    cellListToGameState,
+    gameStateToHtml,
+    gridToHtml,
+    queryToSettings,
+} from "./munge";
 import { DEFAULTS, newGrid, select } from "./game";
+import { cookieMaxAge, cookieName } from "./web";
 
 const app = express();
 const port = process.env.PORT || 3003;
 
-const cookieName = "minesweeper";
 app.use(cookieParser());
 app.use(json());
 app.use(urlencoded({ extended: true }));
@@ -34,14 +39,12 @@ app.get("/", async (req, res) => {
 app.get("/newGame.html", async (req, res) => {
     // TODO: Don't actually generate the board here. Do that on the first reveal. THat means storing the data of the selected game parameters somewhere else?
     const { rows, cols, mines } = req.query;
-    const numRows: number = Number(rows) || DEFAULTS.numRows;
-    const numCols: number = Number(cols) || DEFAULTS.numCols;
-    const numMines: number = Number(mines) || DEFAULTS.numMines;
-    res.cookie(cookieName, JSON.stringify({ numMines, numRows, numCols }), {
-        maxAge: 1000 * 60 * 60 * 24 * 365 * 10,
+    const settings = queryToSettings({ rows, cols, mines });
+    res.cookie(cookieName, JSON.stringify(settings), {
+        maxAge: cookieMaxAge,
     });
 
-    return res.send(gridToHtml(newGrid({ numMines, numCols, numRows })));
+    return res.send(gridToHtml(newGrid(settings)));
 });
 
 app.post("/reveal.html", (req, res) => {
