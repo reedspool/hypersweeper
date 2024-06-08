@@ -6,19 +6,9 @@ import type {
     GridCell as GridCellType,
     GameSettings,
 } from "./types";
-import { randIntBetween } from "./utilities";
-import {
-    GameOverMessage,
-    GameState,
-    GameWonMessage,
-    Grid,
-    GridCell,
-    GridRow,
-    NewGameForm,
-    Page,
-} from "./html";
+import { GameState, NewGameForm, Page } from "./html";
 import { cellListToGameState, gameStateToHtml, gridToHtml } from "./munge";
-import { select } from "./game";
+import { DEFAULTS, newGrid, select } from "./game";
 
 const app = express();
 const port = process.env.PORT || 3003;
@@ -27,12 +17,6 @@ const cookieName = "minesweeper";
 app.use(cookieParser());
 app.use(json());
 app.use(urlencoded({ extended: true }));
-
-const DEFAULTS: GameSettings = {
-    numRows: 10,
-    numCols: 10,
-    numMines: 5,
-};
 
 app.get("/", async (req, res) => {
     let cookieData = { ...DEFAULTS };
@@ -56,75 +40,8 @@ app.get("/newGame.html", async (req, res) => {
     res.cookie(cookieName, JSON.stringify({ numMines, numRows, numCols }), {
         maxAge: 1000 * 60 * 60 * 24 * 365 * 10,
     });
-    const grid: GridType = Array(numRows)
-        .fill(1)
-        .map((_, y) =>
-            Array(numCols)
-                .fill(1)
-                .map((_, x) => {
-                    return {
-                        type: "empty",
-                        touchingMines: 0,
-                        x,
-                        y,
-                    };
-                }),
-        );
 
-    // Mine generation algorithm from uncovered
-    // StackOverflow user Yanick Rochon https://stackoverflow.com/a/3578497
-    for (var i = 0; i < numMines; i++) {
-        let x: number, y: number;
-        do {
-            // Keep generating as long as we keep hitting mines
-            y = randIntBetween(0, numRows);
-            x = randIntBetween(0, numCols);
-            if (!grid?.[y]?.[x]) {
-                console.error("BAD", {
-                    y,
-                    x,
-                    numRows,
-                    numCols,
-                });
-            }
-        } while (grid[y][x].type === "mine");
-        grid[y][x] = {
-            type: "mine",
-            x,
-            y,
-        };
-
-        for (let yOffset = -1; yOffset <= 1; yOffset++) {
-            for (let xOffset = -1; xOffset <= 1; xOffset++) {
-                if (yOffset == 0 && xOffset == 0) continue;
-                const yActual = y + yOffset;
-                const xActual = x + xOffset;
-                if (
-                    yActual < 0 ||
-                    yActual >= numRows ||
-                    xActual < 0 ||
-                    xActual >= numCols
-                )
-                    continue;
-
-                if (!grid?.[yActual]?.[xActual]) {
-                    console.error("BAD", {
-                        y,
-                        x,
-                        yActual,
-                        xActual,
-                        numRows,
-                        numCols,
-                    });
-                }
-                const cell = grid[yActual][xActual];
-                if (cell.type !== "empty") continue;
-                cell.touchingMines++;
-            }
-        }
-    }
-
-    return res.send(gridToHtml(grid));
+    return res.send(gridToHtml(newGrid({ numMines, numCols, numRows })));
 });
 
 app.post("/reveal.html", (req, res) => {
