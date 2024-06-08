@@ -9,6 +9,7 @@ import type {
 import { randIntBetween } from "./utilities";
 import {
     GameOverMessage,
+    GameState,
     GameWonMessage,
     Grid,
     GridCell,
@@ -133,7 +134,12 @@ app.post("/reveal.html", (req, res) => {
     );
     const selectedParsed: GridCellType = JSON.parse(selected);
     select(state, selectedParsed);
-    res.send(gridToHtml(state.grid) + gameStateToHtml(state.state));
+    res.send(
+        GameState({
+            contents: gridToHtml(state.grid),
+            stateMessage: gameStateToHtml(state.state),
+        }),
+    );
 });
 
 app.use(express.static("public"));

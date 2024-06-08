@@ -4,6 +4,7 @@ import type {
     Empty,
     Flag,
     GameSettings,
+    GameState as GameStateType,
     GridCell as GridCellType,
     Mine,
     Question,
@@ -155,3 +156,8 @@ export const GameOverMessage = () => html`
 export const GameWonMessage = () => html`
     <dialog open class="toast">Game Won :)</dialog>
 `;
+
+export const GameState = ({
+    contents,
+    stateMessage,
+}: WithContents & { stateMessage: string }) => contents + stateMessage;

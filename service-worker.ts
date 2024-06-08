@@ -1,6 +1,12 @@
 // Can't use self/globalThis directly currently,
 // See https://github.com/microsoft/TypeScript/issues/11781#issuecomment-2019975124
 // Note to self: Don't use just `serviceWorker` because that's an unsettable
+
+import { select } from "./game";
+import { GameState } from "./html";
+import { cellListToGameState, gameStateToHtml, gridToHtml } from "./munge";
+import type { GridCell } from "./types";
+
 // global already in this context :facepalm:
 const serviceWorkerSelf: ServiceWorkerGlobalScope & typeof globalThis =
     self as any;
@@ -96,6 +102,37 @@ serviceWorkerSelf.addEventListener("activate", function (event) {
 });
 
 serviceWorkerSelf.addEventListener("fetch", async function (event) {
+    if (event.request.url.endsWith("reveal.html")) {
+        event.respondWith(
+            (async function () {
+                const formData = await event.request.formData();
+                const state = cellListToGameState(
+                    formData
+                        .getAll("grid__cell")
+                        .map((value) => JSON.parse(value as string)),
+                );
+
+                const selectedDataString = formData.get("selected");
+                if (typeof selectedDataString !== "string") throw Error();
+                const selectedParsed: GridCell = JSON.parse(selectedDataString);
+                select(state, selectedParsed);
+                const headers = new Headers();
+                const response = new Response(
+                    GameState({
+                        contents: gridToHtml(state.grid),
+                        stateMessage: gameStateToHtml(state.state),
+                    }),
+                    {
+                        status: 200,
+                        statusText: "OK",
+                        headers,
+                    },
+                );
+                return response;
+            })(),
+        );
+    }
+
     // Let the browser do its default thing for non-GET requests not matched above.
     if (event.request.method !== "GET") return;
 
