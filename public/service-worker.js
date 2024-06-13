@@ -1,6 +1,7 @@
 // utilities.ts
 var randInt = (max) => Math.floor(Math.random() * max);
 var randIntBetween = (min, max) => randInt(max - min) + min;
+var wait = (millis) => new Promise((resolve) => setTimeout(() => resolve(null), millis));
 
 // game.ts
 var DEFAULTS = {
@@ -81,6 +82,84 @@ var select = (wholeState, selected) => {
 
 // html.ts
 var html = (templates, ...args) => String.raw(templates, ...args);
+var Page = ({ contents }) => html`
+    <!doctype html>
+    <html class="no-js" lang="">
+        <head>
+            <meta charset="utf-8" />
+            <meta http-equiv="x-ua-compatible" content="ie=edge" />
+            <title>Minesweeper</title>
+            <meta
+                name="description"
+                content="Minesweeper in hypermedia experiment"
+            />
+            <meta
+                name="viewport"
+                content="width=device-width, initial-scale=1"
+            />
+            ${""}
+            <link
+                rel="apple-touch-icon"
+                sizes="180x180"
+                href="/apple-touch-icon.png"
+            />
+            <link
+                rel="icon"
+                type="image/png"
+                sizes="32x32"
+                href="/favicon-32x32.png"
+            />
+            <link
+                rel="icon"
+                type="image/png"
+                sizes="16x16"
+                href="/favicon-16x16.png"
+            />
+            <link rel="manifest" href="/site.webmanifest" />
+            <link
+                rel="stylesheet"
+                href="/site.css"
+                type="text/css"
+                media="screen"
+            />
+            <script src="/service-worker-registrar.js"></script>
+        </head>
+
+        <body>
+            ${contents}
+
+            <script src="browserEntry.js"></script>
+            <script
+                src="https://unpkg.com/htmx.org@1.9.10"
+                integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
+                crossorigin="anonymous"
+            ></script>
+        </body>
+    </html>
+`;
+var NewGameForm = ({
+  numMines,
+  numCols,
+  numRows
+}) => html`
+    <form hx-get="/newGame.html" hx-swap="outerHTML">
+        <label>
+            # Rows
+            <input type="number" name="rows" value="${numRows}" />
+        </label>
+        <label>
+            # Columns
+            <input type="number" name="cols" value="${numCols}" />
+        </label>
+        <label>
+            # Mines
+            <input type="number" name="mines" value="${numMines}" />
+        </label>
+        <button hx-swap="outerHTML" hx-target="closest form" type="submit">
+            New Game
+        </button>
+    </form>
+`;
 var MineCellContents = (_mine) => `\uD83D\uDCA3`;
 var FlagCellContents = (_) => `\uD83C\uDFC1`;
 var QuestionCellContents = (_) => `\u2753`;
@@ -191,8 +270,54 @@ var gridToHtml = (grid) => Grid({
 var gameStateToHtml = (state) => state === "gameOver" ? GameOverMessage() : state === "gameWon" ? GameWonMessage() : "";
 
 // web.ts
+function extractCookieByName(cookie, name) {
+  var nameEQ = name + "=";
+  var ca = cookie.split(";");
+  for (var i = 0;i < ca.length; i++) {
+    var c = ca[i];
+    while (c.charAt(0) == " ")
+      c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) == 0)
+      return c.substring(nameEQ.length, c.length);
+  }
+  return null;
+}
 var cookieName = "minesweeper";
 var cookieMaxAge = 315360000000;
+
+// server.ts
+var handleIndex = (req, res) => {
+  let cookieData = { ...DEFAULTS };
+  if (req?.cookies[cookieName]) {
+    try {
+      cookieData = JSON.parse(req.cookies[cookieName]);
+    } catch (error) {
+    }
+  }
+  res.send(Page({ contents: NewGameForm(cookieData) }));
+};
+var handleNewGame = (req, res) => {
+  const { rows, cols, mines } = req.query;
+  const settings = queryToSettings({ rows, cols, mines });
+  res.cookie(cookieName, JSON.stringify(settings), {
+    maxAge: cookieMaxAge
+  });
+  return res.send(gridToHtml(newGrid(settings)));
+};
+var handleReveal = (req, res) => {
+  let { grid__cell, selected } = req.body;
+  if (typeof grid__cell === "string")
+    grid__cell = [grid__cell];
+  const state = cellListToGameState(grid__cell.map((value) => JSON.parse(value)));
+  if (Array.isArray(selected))
+    throw new Error("Only one cell may be selected");
+  const selectedParsed = JSON.parse(selected);
+  select(state, selectedParsed);
+  res.send(GameState({
+    contents: gridToHtml(state.grid),
+    stateMessage: gameStateToHtml(state.state)
+  }));
+};
 
 // service-worker.ts
 var serviceWorkerSelf = self;
@@ -227,6 +352,7 @@ serviceWorkerSelf.addEventListener("install", async function(event) {
       "favicon-16x16.png",
       "favicon-32x32.png",
       "site.webmanifest",
+      "browserEntry.js",
       "site.css"
     ]);
   }));
@@ -245,71 +371,206 @@ serviceWorkerSelf.addEventListener("activate", function(event) {
   console.log("Service worker attempting to claim");
   event.waitUntil(serviceWorkerSelf.clients.claim());
 });
-serviceWorkerSelf.addEventListener("fetch", async function(event) {
-  const url = new URL(event.request.url);
-  if (url.pathname.endsWith("newGame.html")) {
-    event.respondWith(async function() {
-      const url2 = new URL(event.request.url);
-      const query = {
-        cols: url2.searchParams.get("cols"),
-        rows: url2.searchParams.get("rows"),
-        mines: url2.searchParams.get("mines")
-      };
-      const settings = queryToSettings(query);
-      if (event.clientId) {
-        const client = await serviceWorkerSelf.clients.get(event.clientId);
-        if (client)
-          client.postMessage({
-            type: "set-cookie",
-            cookieName,
-            cookieValue: settings
-          });
+var ALL_PATHS = -1;
+var worxpress = (serviceWorkerSelf2) => {
+  const middlewares = [];
+  serviceWorkerSelf2.addEventListener("fetch", async function(event) {
+    const url = new URL(event.request.url);
+    console.log({
+      url,
+      locationOrigin: location.origin,
+      originsMatch: location.origin === url.origin,
+      pathname: url.pathname,
+      original: event.request.url,
+      matches: url.pathname.match(new RegExp("^/$"))
+    });
+    const middlewaresTemp = [...middlewares];
+    return event.respondWith(new Promise(async function(resolveResponseBody) {
+      try {
+        const cookie = await cookieValuePromise;
+        let formData;
+        try {
+          formData = event.request.method.toLowerCase() === "post" ? await event.request.formData() : [];
+        } catch (error) {
+          console.log("Form data couldn't be done ", error);
+          formData = [];
+        }
+        const request = new Proxy(event.request, {
+          get(target, prop) {
+            console.log(`Request accessing ${prop.toString()}`);
+            if (prop === "query") {
+              const query = {};
+              url.searchParams.forEach((value, key) => {
+                query[key] = value;
+              });
+              return query;
+            }
+            if (prop === "body") {
+              const body = {};
+              formData.forEach((value, key) => {
+                if (typeof value !== "string" && !Array.isArray(value))
+                  throw new Error(`POST body values other than strings not yet implemented`);
+                let prior = body[key];
+                if (typeof prior === "string")
+                  body[key] = [prior];
+                prior = body[key];
+                if (Array.isArray(prior)) {
+                  if (typeof value !== "string")
+                    throw new Error(`POST body values other than strings not yet implemented`);
+                  prior.push(value);
+                } else {
+                  body[key] = value;
+                }
+              });
+              return body;
+            }
+            if (prop === "cookies")
+              return { [cookieName]: cookie };
+            if (prop === "url")
+              return event.request.url;
+            if (prop === "originalEvent")
+              return event;
+            throw new Error(`Sorry, accessing request.${prop.toString()} is not yet implemented.`);
+          },
+          set(target, prop, value) {
+            throw new Error("Mutating the request object is not yet implemented");
+          }
+        });
+        const headers = new Headers;
+        const response = new Proxy({}, {
+          get(target, prop) {
+            if (prop === "cookie") {
+              return async function(name, contents, options) {
+                if (event.clientId) {
+                  const client = await serviceWorkerSelf2.clients.get(event.clientId);
+                  if (client)
+                    client.postMessage({
+                      type: "set-cookie",
+                      cookieName,
+                      cookieValue: contents,
+                      options
+                    });
+                }
+              };
+            }
+            if (prop === "set") {
+              return function(objOrKey, nothingOrValue) {
+                if (typeof objOrKey === "string") {
+                  if (typeof nothingOrValue === "string") {
+                    headers.set(objOrKey, nothingOrValue);
+                  } else {
+                    headers.delete(objOrKey);
+                  }
+                } else {
+                  Object.entries(objOrKey).forEach(([key, value]) => {
+                    headers.set(key, value);
+                  });
+                }
+              };
+            }
+            if (prop === "send") {
+              return function(responseBody) {
+                headers.set("Content-Type", "text/html");
+                const response2 = new Response(responseBody, {
+                  status: 200,
+                  statusText: "OK",
+                  headers
+                });
+                return resolveResponseBody(response2);
+              };
+            }
+            if (prop === "rawResponse") {
+              return function(response2) {
+                return resolveResponseBody(response2);
+              };
+            }
+            throw new Error(`Sorry, accessing response.${prop.toString()} is not yet implemented.`);
+          },
+          set(target, prop, value) {
+            throw new Error("Mutating the response object is not yet implemented");
+          }
+        });
+        async function doNextThing(_) {
+          const first = middlewaresTemp.shift();
+          if (!first) {
+            const cachedResponse = await caches.match(event.request);
+            if (cachedResponse)
+              return resolveResponseBody(cachedResponse);
+            const response2 = await event.preloadResponse;
+            if (response2)
+              return resolveResponseBody(response2);
+            return resolveResponseBody(fetch(event.request));
+          }
+          if (first.path === ALL_PATHS) {
+            return first.handler(request, response, () => doNextThing(resolveResponseBody));
+          } else if (first.method.toLowerCase() === event.request.method.toLowerCase() && url.origin === location.origin && url.pathname.match(new RegExp("^" + first.path + "$"))) {
+            return first.handler(request, response, () => {
+              console.error("I don't think next is supported on Express app.get/app.post/etc but I'm not sure?");
+              doNextThing(resolveResponseBody);
+            });
+          } else {
+            doNextThing(resolveResponseBody);
+          }
+        }
+        await doNextThing(resolveResponseBody);
+      } catch (error) {
+        console.error("Error in service worker worxpress response", error);
+        const headers = new Headers;
+        const response = new Response("501", {
+          status: 501,
+          statusText: "Service Worker Failed",
+          headers
+        });
+        return resolveResponseBody(response);
       }
-      const headers = new Headers;
-      const response = new Response(gridToHtml(newGrid(settings)), {
-        status: 200,
-        statusText: "OK",
-        headers
-      });
-      return response;
-    }());
-    return;
+    }));
+  });
+  return {
+    get: (path, handler) => {
+      middlewares.push({ path, handler, method: "get" });
+    },
+    post: (path, handler) => {
+      middlewares.push({ path, handler, method: "post" });
+    },
+    use: (handler) => {
+      middlewares.push({ path: ALL_PATHS, handler, method: "all" });
+    }
+  };
+};
+worxpress.static = () => (req, res, next) => {
+  console.warn(`Static function called, not yet implemented, for ${req.url}`);
+  next();
+};
+var app = worxpress(serviceWorkerSelf);
+app.get("/", handleIndex);
+app.get("/newGame.html", handleNewGame);
+app.post("/reveal.html", handleReveal);
+app.use(async (req, res, next) => {
+  if (req.url.startsWith("https://unpkg.com/htmx.org")) {
+    const originalRequest = req.originalEvent?.request;
+    if (!originalRequest)
+      throw new Error("Ran originalEvent code in wrong context");
+    if (!res.rawResponse)
+      throw new Error("Ran originalEvent code in wrong context");
+    res.set("Content-Type", "text/html");
+    res.rawResponse(await cacheFirst(originalRequest));
   }
-  if (event.request.url.endsWith("reveal.html")) {
-    event.respondWith(async function() {
-      const formData = await event.request.formData();
-      const state = cellListToGameState(formData.getAll("grid__cell").map((value) => JSON.parse(value)));
-      const selectedDataString = formData.get("selected");
-      if (typeof selectedDataString !== "string")
-        throw Error();
-      const selectedParsed = JSON.parse(selectedDataString);
-      select(state, selectedParsed);
-      const headers = new Headers;
-      const response = new Response(GameState({
-        contents: gridToHtml(state.grid),
-        stateMessage: gameStateToHtml(state.state)
-      }), {
-        status: 200,
-        statusText: "OK",
-        headers
-      });
-      return response;
-    }());
-    return;
-  }
-  if (event.request.method !== "GET")
-    return;
-  if (event.request.url.startsWith("https://unpkg.com/htmx.org")) {
-    event.respondWith(cacheFirst(event.request));
-    return;
-  }
-  event.respondWith(async function() {
-    const cachedResponse = await caches.match(event.request);
-    if (cachedResponse)
-      return cachedResponse;
-    const response = await event.preloadResponse;
-    if (response)
-      return response;
-    return fetch(event.request);
-  }());
+  next();
 });
+app.use(worxpress.static("public"));
+var resolveCookiePromise;
+var cookieValuePromise = Promise.race([
+  new Promise((resolve) => resolveCookiePromise = resolve),
+  wait(1000)
+]);
+cookieValuePromise.then((result) => console.log(`Cookie value promise resolved with '${result}'`));
+serviceWorkerSelf.addEventListener("message", async (event) => {
+  if (event?.data?.type !== "be-nice-with-my-cookies")
+    return;
+  try {
+    resolveCookiePromise(JSON.parse(decodeURIComponent(event.data.cookie)));
+  } catch (error) {
+    console.error("Cookie passing failed", error);
+  }
+});
+cookieValuePromise.then((cookie) => console.log("my cookie? ", cookie));

@@ -1,5 +1,8 @@
 //
 // Runs on main thread, registers and activates separate service worker script
+
+import { cookieName, extractCookieByName } from "./web";
+
 //
 const registerServiceWorker = async () => {
     if (!("serviceWorker" in navigator)) {
@@ -27,6 +30,21 @@ const registerServiceWorker = async () => {
 
 navigator.serviceWorker.addEventListener("controllerchange", (event) => {
     console.log("controllerchange", event);
+});
+// TODO: This is probably the security risk: that I'm manually extracting
+//       just my relevant cookie, but in actuality many other domains may be
+//       accessible to me here and those might not be appropriate
+const justMineSweeperCookie = extractCookieByName(document.cookie, cookieName);
+
+navigator.serviceWorker.ready.then((registration) => {
+    console.log("Service worker readied");
+    if (!registration.active)
+        throw new Error("Registration not active to send cookies");
+    registration.active.postMessage({
+        // See security note question on message listener
+        type: "be-nice-with-my-cookies",
+        cookie: justMineSweeperCookie,
+    });
 });
 
 registerServiceWorker();
