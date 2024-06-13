@@ -1,7 +1,7 @@
 // TODO Server.ts is a weak name... Maybe "Hypermedia server"? this glues
 // together the request, business logic, and response. Transformer?
 import { DEFAULTS, newGrid, select } from "./game";
-import { GameState, NewGameForm, Page } from "./html";
+import { GameState, LoadingNewGameForm, NewGameForm, Page } from "./html";
 import {
     cellListToGameState,
     gameStateToHtml,
@@ -12,18 +12,36 @@ import type { GridCell, MyRequestHandler } from "./types";
 import { cookieMaxAge, cookieName } from "./web";
 
 export const handleIndex: MyRequestHandler = (req, res) => {
-    let cookieData = { ...DEFAULTS };
-    // TODO: Can't actually access this from service worker
-    if (req?.cookies[cookieName]) {
+    let contents: string;
+    if (req.context === "serviceWorker") {
+        contents = LoadingNewGameForm();
+    } else {
+        let cookieData = { ...DEFAULTS };
         try {
             cookieData = JSON.parse(req.cookies[cookieName]);
         } catch (error) {
             // Do nothing, just use defaults, maybe add telemetry in the future
         }
+        contents = NewGameForm(cookieData);
     }
 
-    res.send(Page({ contents: NewGameForm(cookieData) }));
+    res.send(
+        Page({
+            contents,
+        }),
+    );
 };
+
+export const handleNewGameForm: MyRequestHandler = (req, res) => {
+    let cookieData = { ...DEFAULTS };
+    try {
+        cookieData = JSON.parse(req.cookies[cookieName]);
+    } catch (error) {
+        // Do nothing, just use defaults, maybe add telemetry in the future
+    }
+    res.send(NewGameForm(cookieData));
+};
+
 export const handleNewGame: MyRequestHandler = (req, res) => {
     // TODO: Don't actually generate the board here. Do that on the first reveal. THat means storing the data of the selected game parameters somewhere else?
     const { rows, cols, mines } = req.query;

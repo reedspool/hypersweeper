@@ -72,6 +72,12 @@ export const Page = ({ contents }: WithContents) => html`
     </html>
 `;
 
+export const LoadingNewGameForm = () => html`
+    <div hx-get="/newGameForm.html" hx-trigger="load" hx-swap="outerHTML">
+        <div class="loader"></div>
+    </div>
+`;
+
 export const NewGameForm = ({
     numMines,
     numCols,

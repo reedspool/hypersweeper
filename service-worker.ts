@@ -10,8 +10,14 @@ import {
     gridToHtml,
     queryToSettings,
 } from "./munge";
-import { handleIndex, handleNewGame, handleReveal } from "./server";
+import {
+    handleIndex,
+    handleNewGame,
+    handleNewGameForm,
+    handleReveal,
+} from "./server";
 import type {
+    GameSettings,
     GridCell,
     MyMiddlewareHandler,
     MyRequest,
@@ -95,8 +101,10 @@ serviceWorkerSelf.addEventListener("activate", function (event) {
     event.waitUntil(
         (async () => {
             if (serviceWorkerSelf.registration.navigationPreload) {
-                await serviceWorkerSelf.registration.navigationPreload.enable();
-                console.log("Service worker enabled navigation preload");
+                // Trying to handle index page in service worker,
+                // so navigation preload is wasted resources
+                // await serviceWorkerSelf.registration.navigationPreload.enable();
+                // console.log("Service worker enabled navigation preload");
             }
         })(),
     );
@@ -122,14 +130,6 @@ const worxpress: Worxpress = (serviceWorkerSelf: ServiceWorkerGlobalScope) => {
 
     serviceWorkerSelf.addEventListener("fetch", async function (event) {
         const url = new URL(event.request.url);
-        console.log({
-            url,
-            locationOrigin: location.origin,
-            originsMatch: location.origin === url.origin,
-            pathname: url.pathname,
-            original: event.request.url,
-            matches: url.pathname.match(new RegExp("^" + "/" + "$")),
-        });
         const middlewaresTemp = [...middlewares];
 
         return event.respondWith(
@@ -139,8 +139,10 @@ const worxpress: Worxpress = (serviceWorkerSelf: ServiceWorkerGlobalScope) => {
                     // on demand but my proxy isn't async. Would be cool if you could
                     // transparently use async code in sync code via proxy magic...
                     // someday project
-                    const cookie = await cookieValuePromise;
-                    // const cookie = null;
+                    //
+                    // Wait a moment to receive the cookie value from the main
+                    // thread
+                    await coldStartookieValuePromise;
                     let formData: FormData | [];
                     try {
                         formData =
@@ -153,7 +155,10 @@ const worxpress: Worxpress = (serviceWorkerSelf: ServiceWorkerGlobalScope) => {
                     }
                     const request: MyRequest = new Proxy(event.request, {
                         get(target, prop) {
-                            console.log(`Request accessing ${prop.toString()}`);
+                            if (prop === "context") {
+                                return "serviceWorker";
+                            }
+
                             if (prop === "query") {
                                 const query: MyRequest["query"] = {};
                                 url.searchParams.forEach((value, key) => {
@@ -190,7 +195,7 @@ const worxpress: Worxpress = (serviceWorkerSelf: ServiceWorkerGlobalScope) => {
                                 return body;
                             }
                             if (prop === "cookies")
-                                return { [cookieName]: cookie };
+                                return { [cookieName]: receivedCookieValue };
                             if (prop === "url") return event.request.url;
                             if (prop === "originalEvent") return event;
                             throw new Error(
@@ -218,6 +223,8 @@ const worxpress: Worxpress = (serviceWorkerSelf: ServiceWorkerGlobalScope) => {
                                         contents: string,
                                         options: Record<string, unknown>,
                                     ) {
+                                        receivedCookieValue = contents;
+
                                         // If service worker was installed cross-origin, wouldn't have
                                         if (event.clientId) {
                                             const client =
@@ -378,6 +385,7 @@ const app = worxpress(serviceWorkerSelf);
 
 app.get("/", handleIndex);
 app.get("/newGame.html", handleNewGame);
+app.get("/newGameForm.html", handleNewGameForm);
 app.post("/reveal.html", handleReveal);
 
 app.use(async (req, res, next) => {
@@ -398,12 +406,16 @@ app.use(async (req, res, next) => {
 // want to cache?
 app.use(worxpress.static("public"));
 
-let resolveCookiePromise: (str: string) => void;
-const cookieValuePromise = Promise.race([
-    new Promise<string>((resolve) => (resolveCookiePromise = resolve)),
+// When the service worker starts cold, i.e. when it's already installed but it
+// stopped due to inactivity, it won't have this cookie value in memory and it
+// will need to get it from the main thread code
+let receivedCookieValue: null | string = null;
+let resolveColdStartCookiePromise: ((str: string) => void) | null;
+const coldStartookieValuePromise = Promise.race([
+    new Promise<string>((resolve) => (resolveColdStartCookiePromise = resolve)),
     wait(1000),
 ]);
-cookieValuePromise.then((result) =>
+coldStartookieValuePromise.then((result) =>
     console.log(`Cookie value promise resolved with '${result}'`),
 );
 serviceWorkerSelf.addEventListener("message", async (event) => {
@@ -413,10 +425,10 @@ serviceWorkerSelf.addEventListener("message", async (event) => {
     //       since it has to load from my same origin?
     if (event?.data?.type !== "be-nice-with-my-cookies") return;
     try {
-        resolveCookiePromise(JSON.parse(decodeURIComponent(event.data.cookie)));
+        receivedCookieValue = decodeURIComponent(event.data.cookie);
+        resolveColdStartCookiePromise?.(receivedCookieValue);
+        resolveColdStartCookiePromise = null;
     } catch (error) {
         console.error("Cookie passing failed", error);
     }
 });
-
-cookieValuePromise.then((cookie) => console.log("my cookie? ", cookie));

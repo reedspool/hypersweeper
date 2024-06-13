@@ -137,6 +137,11 @@ var Page = ({ contents }) => html`
         </body>
     </html>
 `;
+var LoadingNewGameForm = () => html`
+    <div hx-get="/newGameForm.html" hx-trigger="load" hx-swap="outerHTML">
+        <div class="loader"></div>
+    </div>
+`;
 var NewGameForm = ({
   numMines,
   numCols,
@@ -287,14 +292,28 @@ var cookieMaxAge = 315360000000;
 
 // server.ts
 var handleIndex = (req, res) => {
-  let cookieData = { ...DEFAULTS };
-  if (req?.cookies[cookieName]) {
+  let contents;
+  if (req.context === "serviceWorker") {
+    contents = LoadingNewGameForm();
+  } else {
+    let cookieData = { ...DEFAULTS };
     try {
       cookieData = JSON.parse(req.cookies[cookieName]);
     } catch (error) {
     }
+    contents = NewGameForm(cookieData);
   }
-  res.send(Page({ contents: NewGameForm(cookieData) }));
+  res.send(Page({
+    contents
+  }));
+};
+var handleNewGameForm = (req, res) => {
+  let cookieData = { ...DEFAULTS };
+  try {
+    cookieData = JSON.parse(req.cookies[cookieName]);
+  } catch (error) {
+  }
+  res.send(NewGameForm(cookieData));
 };
 var handleNewGame = (req, res) => {
   const { rows, cols, mines } = req.query;
@@ -364,8 +383,6 @@ serviceWorkerSelf.addEventListener("activate", function(event) {
   event.waitUntil(deleteOldCaches());
   event.waitUntil((async () => {
     if (serviceWorkerSelf.registration.navigationPreload) {
-      await serviceWorkerSelf.registration.navigationPreload.enable();
-      console.log("Service worker enabled navigation preload");
     }
   })());
   console.log("Service worker attempting to claim");
@@ -376,18 +393,10 @@ var worxpress = (serviceWorkerSelf2) => {
   const middlewares = [];
   serviceWorkerSelf2.addEventListener("fetch", async function(event) {
     const url = new URL(event.request.url);
-    console.log({
-      url,
-      locationOrigin: location.origin,
-      originsMatch: location.origin === url.origin,
-      pathname: url.pathname,
-      original: event.request.url,
-      matches: url.pathname.match(new RegExp("^/$"))
-    });
     const middlewaresTemp = [...middlewares];
     return event.respondWith(new Promise(async function(resolveResponseBody) {
       try {
-        const cookie = await cookieValuePromise;
+        await coldStartookieValuePromise;
         let formData;
         try {
           formData = event.request.method.toLowerCase() === "post" ? await event.request.formData() : [];
@@ -397,7 +406,9 @@ var worxpress = (serviceWorkerSelf2) => {
         }
         const request = new Proxy(event.request, {
           get(target, prop) {
-            console.log(`Request accessing ${prop.toString()}`);
+            if (prop === "context") {
+              return "serviceWorker";
+            }
             if (prop === "query") {
               const query = {};
               url.searchParams.forEach((value, key) => {
@@ -425,7 +436,7 @@ var worxpress = (serviceWorkerSelf2) => {
               return body;
             }
             if (prop === "cookies")
-              return { [cookieName]: cookie };
+              return { [cookieName]: receivedCookieValue };
             if (prop === "url")
               return event.request.url;
             if (prop === "originalEvent")
@@ -441,6 +452,7 @@ var worxpress = (serviceWorkerSelf2) => {
           get(target, prop) {
             if (prop === "cookie") {
               return async function(name, contents, options) {
+                receivedCookieValue = contents;
                 if (event.clientId) {
                   const client = await serviceWorkerSelf2.clients.get(event.clientId);
                   if (client)
@@ -544,6 +556,7 @@ worxpress.static = () => (req, res, next) => {
 var app = worxpress(serviceWorkerSelf);
 app.get("/", handleIndex);
 app.get("/newGame.html", handleNewGame);
+app.get("/newGameForm.html", handleNewGameForm);
 app.post("/reveal.html", handleReveal);
 app.use(async (req, res, next) => {
   if (req.url.startsWith("https://unpkg.com/htmx.org")) {
@@ -558,19 +571,21 @@ app.use(async (req, res, next) => {
   next();
 });
 app.use(worxpress.static("public"));
-var resolveCookiePromise;
-var cookieValuePromise = Promise.race([
-  new Promise((resolve) => resolveCookiePromise = resolve),
+var receivedCookieValue = null;
+var resolveColdStartCookiePromise;
+var coldStartookieValuePromise = Promise.race([
+  new Promise((resolve) => resolveColdStartCookiePromise = resolve),
   wait(1000)
 ]);
-cookieValuePromise.then((result) => console.log(`Cookie value promise resolved with '${result}'`));
+coldStartookieValuePromise.then((result) => console.log(`Cookie value promise resolved with '${result}'`));
 serviceWorkerSelf.addEventListener("message", async (event) => {
   if (event?.data?.type !== "be-nice-with-my-cookies")
     return;
   try {
-    resolveCookiePromise(JSON.parse(decodeURIComponent(event.data.cookie)));
+    receivedCookieValue = decodeURIComponent(event.data.cookie);
+    resolveColdStartCookiePromise?.(receivedCookieValue);
+    resolveColdStartCookiePromise = null;
   } catch (error) {
     console.error("Cookie passing failed", error);
   }
 });
-cookieValuePromise.then((cookie) => console.log("my cookie? ", cookie));
