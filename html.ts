@@ -11,7 +11,7 @@ import type {
 } from "./types";
 
 // See https://prettier.io/blog/2020/08/24/2.1.0.html
-const html: typeof String.raw = (templates, ...args): string =>
+const html: typeof String.raw = (templates, ...args) =>
     String.raw(templates, ...args);
 
 type WithContents = { contents: string };

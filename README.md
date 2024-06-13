@@ -9,3 +9,7 @@ From https://en.m.wikipedia.org/wiki/Long-term_nuclear_waste_warning_messages (s
 ---
 
 Aside, installed bun on Termux for this project with [this script](https://gist.github.com/CodeIter/ccdcc840e432288ef1e01cc15d66c048?permalink_comment_id=5079985#gistcomment-5079985)
+
+## Debugging
+
+chrome://serviceworker-internals/

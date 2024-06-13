@@ -6,15 +6,13 @@ import type {
     GridCell as GridCellType,
     GameSettings,
 } from "./types";
-import { GameState, NewGameForm, Page } from "./html";
 import {
     cellListToGameState,
     gameStateToHtml,
     gridToHtml,
     queryToSettings,
 } from "./munge";
-import { DEFAULTS, newGrid, select } from "./game";
-import { cookieMaxAge, cookieName } from "./web";
+import { handleIndex, handleNewGame, handleReveal } from "./server";
 
 const app = express();
 const port = process.env.PORT || 3003;
@@ -23,44 +21,9 @@ app.use(cookieParser());
 app.use(json());
 app.use(urlencoded({ extended: true }));
 
-app.get("/", async (req, res) => {
-    let cookieData = { ...DEFAULTS };
-    if (req?.cookies[cookieName]) {
-        try {
-            cookieData = JSON.parse(req.cookies[cookieName]);
-        } catch (error) {
-            console.log("Oops!", error);
-            // Do nothing, just use defaults, maybe add telemetry in the future
-        }
-    }
-    res.send(Page({ contents: NewGameForm(cookieData) }));
-});
-
-app.get("/newGame.html", async (req, res) => {
-    // TODO: Don't actually generate the board here. Do that on the first reveal. THat means storing the data of the selected game parameters somewhere else?
-    const { rows, cols, mines } = req.query;
-    const settings = queryToSettings({ rows, cols, mines });
-    res.cookie(cookieName, JSON.stringify(settings), {
-        maxAge: cookieMaxAge,
-    });
-
-    return res.send(gridToHtml(newGrid(settings)));
-});
-
-app.post("/reveal.html", (req, res) => {
-    const { grid__cell, selected } = req.body;
-    const state = cellListToGameState(
-        grid__cell.map((value: string) => JSON.parse(value)),
-    );
-    const selectedParsed: GridCellType = JSON.parse(selected);
-    select(state, selectedParsed);
-    res.send(
-        GameState({
-            contents: gridToHtml(state.grid),
-            stateMessage: gameStateToHtml(state.state),
-        }),
-    );
-});
+app.get("/", handleIndex);
+app.get("/newGame.html", handleNewGame);
+app.post("/reveal.html", handleReveal);
 
 app.use(express.static("public"));
 
