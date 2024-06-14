@@ -291,6 +291,12 @@ var cookieName = "minesweeper";
 var cookieMaxAge = 315360000000;
 
 // server.ts
+var setupApp = (app) => {
+  app.get("/", handleIndex);
+  app.get("/newGame.html", handleNewGame);
+  app.get("/newGameForm.html", handleNewGameForm);
+  app.post("/reveal.html", handleReveal);
+};
 var handleIndex = (req, res) => {
   let contents;
   if (req.context === "serviceWorker") {
@@ -336,6 +342,193 @@ var handleReveal = (req, res) => {
     contents: gridToHtml(state.grid),
     stateMessage: gameStateToHtml(state.state)
   }));
+};
+
+// worxpress.ts
+var ALL_PATHS = -1;
+var worxpress = ({ serviceWorkerSelf, cookieName: cookieName2 }) => {
+  const middlewares = [];
+  serviceWorkerSelf.addEventListener("fetch", async function(event) {
+    const url = new URL(event.request.url);
+    const middlewaresTemp = [...middlewares];
+    return event.respondWith(new Promise(async function(resolveResponseBody) {
+      try {
+        await coldStartookieValuePromise;
+        let formData;
+        try {
+          formData = event.request.method.toLowerCase() === "post" ? await event.request.formData() : [];
+        } catch (error) {
+          console.log("Form data couldn't be done ", error);
+          formData = [];
+        }
+        const request = new Proxy(event.request, {
+          get(_target, prop) {
+            if (prop === "context") {
+              return "serviceWorker";
+            }
+            if (prop === "query") {
+              const query = {};
+              url.searchParams.forEach((value, key) => {
+                query[key] = value;
+              });
+              return query;
+            }
+            if (prop === "body") {
+              const body = {};
+              formData.forEach((value, key) => {
+                if (typeof value !== "string" && !Array.isArray(value))
+                  throw new Error(`POST body values other than strings not yet implemented`);
+                let prior = body[key];
+                if (typeof prior === "string")
+                  body[key] = [prior];
+                prior = body[key];
+                if (Array.isArray(prior)) {
+                  if (typeof value !== "string")
+                    throw new Error(`POST body values other than strings not yet implemented`);
+                  prior.push(value);
+                } else {
+                  body[key] = value;
+                }
+              });
+              return body;
+            }
+            if (prop === "cookies")
+              return { [cookieName2]: receivedCookieValue };
+            if (prop === "url")
+              return event.request.url;
+            if (prop === "originalEvent")
+              return event;
+            throw new Error(`Sorry, accessing request.${prop.toString()} is not yet implemented.`);
+          },
+          set(_target, _prop, _value) {
+            throw new Error("Mutating the request object is not yet implemented");
+          }
+        });
+        const headers = new Headers;
+        const response = new Proxy({}, {
+          get(_target, prop) {
+            if (prop === "cookie") {
+              return async function(name, contents, options) {
+                if (name !== cookieName2)
+                  throw new Error("Setting cookie other than the one configured is not yet supported");
+                receivedCookieValue = contents;
+                if (event.clientId) {
+                  const client = await serviceWorkerSelf.clients.get(event.clientId);
+                  if (client)
+                    client.postMessage({
+                      type: "set-cookie",
+                      cookieName: cookieName2,
+                      cookieValue: contents,
+                      options
+                    });
+                }
+              };
+            }
+            if (prop === "set") {
+              return function(objOrKey, nothingOrValue) {
+                if (typeof objOrKey === "string") {
+                  if (typeof nothingOrValue === "string") {
+                    headers.set(objOrKey, nothingOrValue);
+                  } else {
+                    headers.delete(objOrKey);
+                  }
+                } else {
+                  Object.entries(objOrKey).forEach(([key, value]) => {
+                    headers.set(key, value);
+                  });
+                }
+              };
+            }
+            if (prop === "send") {
+              return function(responseBody) {
+                headers.set("Content-Type", "text/html");
+                const response2 = new Response(responseBody, {
+                  status: 200,
+                  statusText: "OK",
+                  headers
+                });
+                return resolveResponseBody(response2);
+              };
+            }
+            if (prop === "rawResponse") {
+              return function(response2) {
+                return resolveResponseBody(response2);
+              };
+            }
+            throw new Error(`Sorry, accessing response.${prop.toString()} is not yet implemented.`);
+          },
+          set(_target, _prop, _value) {
+            throw new Error("Mutating the response object is not yet implemented");
+          }
+        });
+        async function doNextThing(_) {
+          const first = middlewaresTemp.shift();
+          if (!first) {
+            const cachedResponse = await caches.match(event.request);
+            if (cachedResponse)
+              return resolveResponseBody(cachedResponse);
+            const response2 = await event.preloadResponse;
+            if (response2)
+              return resolveResponseBody(response2);
+            return resolveResponseBody(fetch(event.request));
+          }
+          if (first.path === ALL_PATHS) {
+            return first.handler(request, response, () => doNextThing(resolveResponseBody));
+          } else if (first.method.toLowerCase() === event.request.method.toLowerCase() && url.origin === location.origin && url.pathname.match(new RegExp("^" + first.path + "$"))) {
+            return first.handler(request, response, () => {
+              console.error("I don't think next is supported on Express app.get/app.post/etc but I'm not sure?");
+              doNextThing(resolveResponseBody);
+            });
+          } else {
+            doNextThing(resolveResponseBody);
+          }
+        }
+        await doNextThing(resolveResponseBody);
+      } catch (error) {
+        console.error("Error in service worker worxpress response", error);
+        const headers = new Headers;
+        const response = new Response("501", {
+          status: 501,
+          statusText: "Service Worker Failed",
+          headers
+        });
+        return resolveResponseBody(response);
+      }
+    }));
+  });
+  let receivedCookieValue = null;
+  let resolveColdStartCookiePromise;
+  const coldStartookieValuePromise = Promise.race([
+    new Promise((resolve) => resolveColdStartCookiePromise = resolve),
+    wait(1000)
+  ]);
+  coldStartookieValuePromise.then((result) => console.log(`Cookie value promise resolved with '${result}'`));
+  serviceWorkerSelf.addEventListener("message", async (event) => {
+    if (event?.data?.type !== "be-nice-with-my-cookies")
+      return;
+    try {
+      receivedCookieValue = decodeURIComponent(event.data.cookie);
+      resolveColdStartCookiePromise?.(receivedCookieValue);
+      resolveColdStartCookiePromise = null;
+    } catch (error) {
+      console.error("Cookie passing failed", error);
+    }
+  });
+  return {
+    get: (path, handler) => {
+      middlewares.push({ path, handler, method: "get" });
+    },
+    post: (path, handler) => {
+      middlewares.push({ path, handler, method: "post" });
+    },
+    use: (handler) => {
+      middlewares.push({ path: ALL_PATHS, handler, method: "all" });
+    }
+  };
+};
+worxpress.static = () => (req, _res, next) => {
+  console.warn(`Static function called, not yet implemented, for ${req.url}`);
+  next();
 };
 
 // service-worker.ts
@@ -388,176 +581,8 @@ serviceWorkerSelf.addEventListener("activate", function(event) {
   console.log("Service worker attempting to claim");
   event.waitUntil(serviceWorkerSelf.clients.claim());
 });
-var ALL_PATHS = -1;
-var worxpress = (serviceWorkerSelf2) => {
-  const middlewares = [];
-  serviceWorkerSelf2.addEventListener("fetch", async function(event) {
-    const url = new URL(event.request.url);
-    const middlewaresTemp = [...middlewares];
-    return event.respondWith(new Promise(async function(resolveResponseBody) {
-      try {
-        await coldStartookieValuePromise;
-        let formData;
-        try {
-          formData = event.request.method.toLowerCase() === "post" ? await event.request.formData() : [];
-        } catch (error) {
-          console.log("Form data couldn't be done ", error);
-          formData = [];
-        }
-        const request = new Proxy(event.request, {
-          get(target, prop) {
-            if (prop === "context") {
-              return "serviceWorker";
-            }
-            if (prop === "query") {
-              const query = {};
-              url.searchParams.forEach((value, key) => {
-                query[key] = value;
-              });
-              return query;
-            }
-            if (prop === "body") {
-              const body = {};
-              formData.forEach((value, key) => {
-                if (typeof value !== "string" && !Array.isArray(value))
-                  throw new Error(`POST body values other than strings not yet implemented`);
-                let prior = body[key];
-                if (typeof prior === "string")
-                  body[key] = [prior];
-                prior = body[key];
-                if (Array.isArray(prior)) {
-                  if (typeof value !== "string")
-                    throw new Error(`POST body values other than strings not yet implemented`);
-                  prior.push(value);
-                } else {
-                  body[key] = value;
-                }
-              });
-              return body;
-            }
-            if (prop === "cookies")
-              return { [cookieName]: receivedCookieValue };
-            if (prop === "url")
-              return event.request.url;
-            if (prop === "originalEvent")
-              return event;
-            throw new Error(`Sorry, accessing request.${prop.toString()} is not yet implemented.`);
-          },
-          set(target, prop, value) {
-            throw new Error("Mutating the request object is not yet implemented");
-          }
-        });
-        const headers = new Headers;
-        const response = new Proxy({}, {
-          get(target, prop) {
-            if (prop === "cookie") {
-              return async function(name, contents, options) {
-                receivedCookieValue = contents;
-                if (event.clientId) {
-                  const client = await serviceWorkerSelf2.clients.get(event.clientId);
-                  if (client)
-                    client.postMessage({
-                      type: "set-cookie",
-                      cookieName,
-                      cookieValue: contents,
-                      options
-                    });
-                }
-              };
-            }
-            if (prop === "set") {
-              return function(objOrKey, nothingOrValue) {
-                if (typeof objOrKey === "string") {
-                  if (typeof nothingOrValue === "string") {
-                    headers.set(objOrKey, nothingOrValue);
-                  } else {
-                    headers.delete(objOrKey);
-                  }
-                } else {
-                  Object.entries(objOrKey).forEach(([key, value]) => {
-                    headers.set(key, value);
-                  });
-                }
-              };
-            }
-            if (prop === "send") {
-              return function(responseBody) {
-                headers.set("Content-Type", "text/html");
-                const response2 = new Response(responseBody, {
-                  status: 200,
-                  statusText: "OK",
-                  headers
-                });
-                return resolveResponseBody(response2);
-              };
-            }
-            if (prop === "rawResponse") {
-              return function(response2) {
-                return resolveResponseBody(response2);
-              };
-            }
-            throw new Error(`Sorry, accessing response.${prop.toString()} is not yet implemented.`);
-          },
-          set(target, prop, value) {
-            throw new Error("Mutating the response object is not yet implemented");
-          }
-        });
-        async function doNextThing(_) {
-          const first = middlewaresTemp.shift();
-          if (!first) {
-            const cachedResponse = await caches.match(event.request);
-            if (cachedResponse)
-              return resolveResponseBody(cachedResponse);
-            const response2 = await event.preloadResponse;
-            if (response2)
-              return resolveResponseBody(response2);
-            return resolveResponseBody(fetch(event.request));
-          }
-          if (first.path === ALL_PATHS) {
-            return first.handler(request, response, () => doNextThing(resolveResponseBody));
-          } else if (first.method.toLowerCase() === event.request.method.toLowerCase() && url.origin === location.origin && url.pathname.match(new RegExp("^" + first.path + "$"))) {
-            return first.handler(request, response, () => {
-              console.error("I don't think next is supported on Express app.get/app.post/etc but I'm not sure?");
-              doNextThing(resolveResponseBody);
-            });
-          } else {
-            doNextThing(resolveResponseBody);
-          }
-        }
-        await doNextThing(resolveResponseBody);
-      } catch (error) {
-        console.error("Error in service worker worxpress response", error);
-        const headers = new Headers;
-        const response = new Response("501", {
-          status: 501,
-          statusText: "Service Worker Failed",
-          headers
-        });
-        return resolveResponseBody(response);
-      }
-    }));
-  });
-  return {
-    get: (path, handler) => {
-      middlewares.push({ path, handler, method: "get" });
-    },
-    post: (path, handler) => {
-      middlewares.push({ path, handler, method: "post" });
-    },
-    use: (handler) => {
-      middlewares.push({ path: ALL_PATHS, handler, method: "all" });
-    }
-  };
-};
-worxpress.static = () => (req, res, next) => {
-  console.warn(`Static function called, not yet implemented, for ${req.url}`);
-  next();
-};
-var app = worxpress(serviceWorkerSelf);
-app.get("/", handleIndex);
-app.get("/newGame.html", handleNewGame);
-app.get("/newGameForm.html", handleNewGameForm);
-app.post("/reveal.html", handleReveal);
+var app = worxpress({ serviceWorkerSelf, cookieName });
+setupApp(app);
 app.use(async (req, res, next) => {
   if (req.url.startsWith("https://unpkg.com/htmx.org")) {
     const originalRequest = req.originalEvent?.request;
@@ -571,21 +596,3 @@ app.use(async (req, res, next) => {
   next();
 });
 app.use(worxpress.static("public"));
-var receivedCookieValue = null;
-var resolveColdStartCookiePromise;
-var coldStartookieValuePromise = Promise.race([
-  new Promise((resolve) => resolveColdStartCookiePromise = resolve),
-  wait(1000)
-]);
-coldStartookieValuePromise.then((result) => console.log(`Cookie value promise resolved with '${result}'`));
-serviceWorkerSelf.addEventListener("message", async (event) => {
-  if (event?.data?.type !== "be-nice-with-my-cookies")
-    return;
-  try {
-    receivedCookieValue = decodeURIComponent(event.data.cookie);
-    resolveColdStartCookiePromise?.(receivedCookieValue);
-    resolveColdStartCookiePromise = null;
-  } catch (error) {
-    console.error("Cookie passing failed", error);
-  }
-});

@@ -31,8 +31,7 @@ export type MyRequest = {
     // NOTE Extra stuff that doesn't comply with Express's Request
     //      MUST be totally optional
     originalEvent?: FetchEvent;
-
-    context: undefined | "serviceWorker" | "server";
+    context?: undefined | "serviceWorker" | "server";
 };
 
 export type MyResponse = {

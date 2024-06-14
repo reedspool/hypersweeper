@@ -10,8 +10,16 @@ import {
 } from "./munge";
 import type { GridCell, MyRequestHandler } from "./types";
 import { cookieMaxAge, cookieName } from "./web";
+import type { WorxpressApp } from "./worxpress";
 
-export const handleIndex: MyRequestHandler = (req, res) => {
+export const setupApp = (app: WorxpressApp) => {
+    app.get("/", handleIndex);
+    app.get("/newGame.html", handleNewGame);
+    app.get("/newGameForm.html", handleNewGameForm);
+    app.post("/reveal.html", handleReveal);
+};
+
+const handleIndex: MyRequestHandler = (req, res) => {
     let contents: string;
     if (req.context === "serviceWorker") {
         contents = LoadingNewGameForm();
@@ -32,7 +40,7 @@ export const handleIndex: MyRequestHandler = (req, res) => {
     );
 };
 
-export const handleNewGameForm: MyRequestHandler = (req, res) => {
+const handleNewGameForm: MyRequestHandler = (req, res) => {
     let cookieData = { ...DEFAULTS };
     try {
         cookieData = JSON.parse(req.cookies[cookieName]);
@@ -42,7 +50,7 @@ export const handleNewGameForm: MyRequestHandler = (req, res) => {
     res.send(NewGameForm(cookieData));
 };
 
-export const handleNewGame: MyRequestHandler = (req, res) => {
+const handleNewGame: MyRequestHandler = (req, res) => {
     // TODO: Don't actually generate the board here. Do that on the first reveal. THat means storing the data of the selected game parameters somewhere else?
     const { rows, cols, mines } = req.query;
     const settings = queryToSettings({ rows, cols, mines });
@@ -53,7 +61,7 @@ export const handleNewGame: MyRequestHandler = (req, res) => {
     return res.send(gridToHtml(newGrid(settings)));
 };
 
-export const handleReveal: MyRequestHandler = (req, res) => {
+const handleReveal: MyRequestHandler = (req, res) => {
     let { grid__cell, selected } = req.body;
     if (typeof grid__cell === "string") grid__cell = [grid__cell];
     const state = cellListToGameState(

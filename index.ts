@@ -1,18 +1,7 @@
 import express, { json, urlencoded } from "express";
 import type { ErrorRequestHandler } from "express";
 import cookieParser from "cookie-parser";
-import type {
-    Grid as GridType,
-    GridCell as GridCellType,
-    GameSettings,
-} from "./types";
-import {
-    cellListToGameState,
-    gameStateToHtml,
-    gridToHtml,
-    queryToSettings,
-} from "./munge";
-import { handleIndex, handleNewGame, handleReveal } from "./server";
+import { setupApp } from "./server";
 
 const app = express();
 const port = process.env.PORT || 3003;
@@ -21,17 +10,17 @@ app.use(cookieParser());
 app.use(json());
 app.use(urlencoded({ extended: true }));
 
-app.get("/", handleIndex);
-app.get("/newGame.html", handleNewGame);
-app.post("/reveal.html", handleReveal);
+setupApp(app);
 
 app.use(express.static("public"));
 
 //
 // Final 404/5XX handlers
 //
-app.use(function (err, req, res, next) {
-    console.error("5XX", err, req, next);
+// NOTE Unused parameters REQUIRED - error handlers
+//      REQUIRE 4 parameters (Express uses Function:length)
+app.use(function (err, _req, res, _next) {
+    console.error("5XX", err);
     res.status(err?.status || 500);
 
     res.send("500");
