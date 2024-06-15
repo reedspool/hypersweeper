@@ -4,7 +4,6 @@ import type {
     Empty,
     Flag,
     GameSettings,
-    GameState as GameStateType,
     GridCell as GridCellType,
     Mine,
     Question,
@@ -35,28 +34,28 @@ export const Page = ({ contents }: WithContents) => html`
             <link
                 rel="apple-touch-icon"
                 sizes="180x180"
-                href="/apple-touch-icon.png"
+                href="apple-touch-icon.png"
             />
             <link
                 rel="icon"
                 type="image/png"
                 sizes="32x32"
-                href="/favicon-32x32.png"
+                href="favicon-32x32.png"
             />
             <link
                 rel="icon"
                 type="image/png"
                 sizes="16x16"
-                href="/favicon-16x16.png"
+                href="favicon-16x16.png"
             />
-            <link rel="manifest" href="/site.webmanifest" />
+            <link rel="manifest" href="site.webmanifest" />
             <link
                 rel="stylesheet"
-                href="/site.css"
+                href="site.css"
                 type="text/css"
                 media="screen"
             />
-            <script src="/service-worker-registrar.js"></script>
+            <script src="service-worker-registrar.js"></script>
         </head>
 
         <body>
@@ -73,7 +72,7 @@ export const Page = ({ contents }: WithContents) => html`
 `;
 
 export const LoadingNewGameForm = () => html`
-    <div hx-get="/newGameForm.html" hx-trigger="load" hx-swap="outerHTML">
+    <div hx-get="newGameForm.html" hx-trigger="load" hx-swap="outerHTML">
         <div class="loader"></div>
     </div>
 `;
@@ -83,7 +82,7 @@ export const NewGameForm = ({
     numCols,
     numRows,
 }: GameSettings) => html`
-    <form hx-get="/newGame.html" hx-swap="outerHTML">
+    <form hx-get="newGame.html" hx-swap="outerHTML">
         <label>
             # Rows
             <input type="number" name="rows" value="${numRows}" />
@@ -153,7 +152,7 @@ export const GridRow = ({
 `;
 
 export const Grid = ({ contents }: WithContents) =>
-    html`<form hx-post="/reveal.html" hx-swap="outerHTML" class="grid">
+    html`<form hx-post="reveal.html" hx-swap="outerHTML" class="grid">
         ${contents}
     </form>`;
 

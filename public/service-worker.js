@@ -101,28 +101,28 @@ var Page = ({ contents }) => html`
             <link
                 rel="apple-touch-icon"
                 sizes="180x180"
-                href="/apple-touch-icon.png"
+                href="apple-touch-icon.png"
             />
             <link
                 rel="icon"
                 type="image/png"
                 sizes="32x32"
-                href="/favicon-32x32.png"
+                href="favicon-32x32.png"
             />
             <link
                 rel="icon"
                 type="image/png"
                 sizes="16x16"
-                href="/favicon-16x16.png"
+                href="favicon-16x16.png"
             />
-            <link rel="manifest" href="/site.webmanifest" />
+            <link rel="manifest" href="site.webmanifest" />
             <link
                 rel="stylesheet"
-                href="/site.css"
+                href="site.css"
                 type="text/css"
                 media="screen"
             />
-            <script src="/service-worker-registrar.js"></script>
+            <script src="service-worker-registrar.js"></script>
         </head>
 
         <body>
@@ -138,7 +138,7 @@ var Page = ({ contents }) => html`
     </html>
 `;
 var LoadingNewGameForm = () => html`
-    <div hx-get="/newGameForm.html" hx-trigger="load" hx-swap="outerHTML">
+    <div hx-get="newGameForm.html" hx-trigger="load" hx-swap="outerHTML">
         <div class="loader"></div>
     </div>
 `;
@@ -147,7 +147,7 @@ var NewGameForm = ({
   numCols,
   numRows
 }) => html`
-    <form hx-get="/newGame.html" hx-swap="outerHTML">
+    <form hx-get="newGame.html" hx-swap="outerHTML">
         <label>
             # Rows
             <input type="number" name="rows" value="${numRows}" />
@@ -201,7 +201,7 @@ var GridRow = ({
         ${contents}
     </fieldset>
 `;
-var Grid = ({ contents }) => html`<form hx-post="/reveal.html" hx-swap="outerHTML" class="grid">
+var Grid = ({ contents }) => html`<form hx-post="reveal.html" hx-swap="outerHTML" class="grid">
         ${contents}
     </form>`;
 var GameOverMessage = () => html`
