@@ -26,8 +26,22 @@ const registerServiceWorker = async () => {
 
         navigator.serviceWorker.ready.then((registration) => {
             console.log("Service worker readied");
-            if (!registration.active)
-                throw new Error("Registration not active to send cookies");
+            if (!registration.active) {
+                console.error(
+                    "Registration not active to send cookies or load first view",
+                );
+                throw new Error(
+                    "Registration not active to send cookies or load first view",
+                );
+            }
+            setTimeout(
+                () =>
+                    document.body.dispatchEvent(
+                        new CustomEvent("service-worker-ready"),
+                    ),
+                // TODO: Why does a 1 here work, but a 0 does not?
+                1,
+            );
             registration.active.postMessage({
                 // See security note question on message listener
                 type: "be-nice-with-my-cookies",

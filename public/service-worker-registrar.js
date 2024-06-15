@@ -27,8 +27,11 @@ var registerServiceWorker = async () => {
     const justMineSweeperCookie = extractCookieByName(document.cookie, cookieName);
     navigator.serviceWorker.ready.then((registration2) => {
       console.log("Service worker readied");
-      if (!registration2.active)
-        throw new Error("Registration not active to send cookies");
+      if (!registration2.active) {
+        console.error("Registration not active to send cookies or load first view");
+        throw new Error("Registration not active to send cookies or load first view");
+      }
+      setTimeout(() => document.body.dispatchEvent(new CustomEvent("service-worker-ready")), 1);
       registration2.active.postMessage({
         type: "be-nice-with-my-cookies",
         cookie: justMineSweeperCookie

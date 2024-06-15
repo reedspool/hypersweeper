@@ -465,7 +465,7 @@ var worxpress = ({ serviceWorkerSelf, cookieName: cookieName2 }) => {
           }
           if (first.path === ALL_PATHS) {
             return first.handler(request, response, () => doNextThing(resolveResponseBody));
-          } else if (first.method.toLowerCase() === event.request.method.toLowerCase() && url.origin === location.origin && url.pathname.match(new RegExp("^" + first.path + "$"))) {
+          } else if (first.method.toLowerCase() === event.request.method.toLowerCase() && url.origin === location.origin && serviceWorkerSelf.registration.scope + first.path.replace(/^\//, "") === url.protocol + "//" + url.host + url.pathname) {
             return first.handler(request, response, () => {
               console.error("I don't think next is supported on Express app.get/app.post/etc but I'm not sure?");
               doNextThing(resolveResponseBody);
@@ -564,13 +564,13 @@ serviceWorkerSelf.addEventListener("install", async function(event) {
 serviceWorkerSelf.addEventListener("activate", function(event) {
   console.log("Service worker activated", event);
   console.log("Service worker cleaning up old caches");
-  event.waitUntil(deleteOldCaches());
   event.waitUntil((async () => {
+    await deleteOldCaches();
     if (serviceWorkerSelf.registration.navigationPreload) {
     }
+    console.log("Service worker attempting to claim");
+    await serviceWorkerSelf.clients.claim();
   })());
-  console.log("Service worker attempting to claim");
-  event.waitUntil(serviceWorkerSelf.clients.claim());
 });
 var app = worxpress({ serviceWorkerSelf, cookieName });
 setupApp(app);

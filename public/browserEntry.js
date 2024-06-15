@@ -22,3 +22,12 @@ navigator.serviceWorker.addEventListener("message", (event) => {
     return;
   document.cookie = `${cookieName2}=${encodeURIComponent(cookieValue)};max-age=${cookieMaxAge}`;
 });
+document.body.addEventListener("service-worker-ready", () => {
+  console.log("service-worker-ready fired!");
+  setTimeout(() => {
+    const loadingControl = document.querySelector("[hx-trigger^=service-worker-ready]");
+    if (loadingControl) {
+      loadingControl.innerHTML = `Something went wrong. The service worker appears to be unavailable. If you force-refreshed (Ctrl-Shift-R), try a normal refresh now.`;
+    }
+  }, 2000);
+});

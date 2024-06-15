@@ -237,9 +237,9 @@ export const worxpress: Worxpress = ({ serviceWorkerSelf, cookieName }) => {
                             first.method.toLowerCase() ===
                                 event.request.method.toLowerCase() &&
                             url.origin === location.origin &&
-                            url.pathname.match(
-                                new RegExp("^" + first.path + "$"),
-                            )
+                            serviceWorkerSelf.registration.scope +
+                                first.path.replace(/^\//, "") ===
+                                url.protocol + "//" + url.host + url.pathname
                         ) {
                             return first.handler(request, response, () => {
                                 console.error(

@@ -76,19 +76,21 @@ serviceWorkerSelf.addEventListener("install", async function (event) {
 serviceWorkerSelf.addEventListener("activate", function (event) {
     console.log("Service worker activated", event);
     console.log("Service worker cleaning up old caches");
-    event.waitUntil(deleteOldCaches());
     event.waitUntil(
         (async () => {
+            await deleteOldCaches();
+
             if (serviceWorkerSelf.registration.navigationPreload) {
                 // Trying to handle index page in service worker,
                 // so navigation preload is wasted resources
                 // await serviceWorkerSelf.registration.navigationPreload.enable();
                 // console.log("Service worker enabled navigation preload");
             }
+
+            console.log("Service worker attempting to claim");
+            await serviceWorkerSelf.clients.claim();
         })(),
     );
-    console.log("Service worker attempting to claim");
-    event.waitUntil(serviceWorkerSelf.clients.claim());
 });
 
 const app = worxpress({ serviceWorkerSelf, cookieName });
