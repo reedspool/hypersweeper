@@ -10,8 +10,33 @@ const registerServiceWorker = async () => {
         return;
     }
     try {
+        navigator.serviceWorker.addEventListener(
+            "controllerchange",
+            (event) => {
+                console.log("controllerchange", event);
+            },
+        );
+        // TODO: This is probably the security risk: that I'm manually extracting
+        //       just my relevant cookie, but in actuality many other domains may be
+        //       accessible to me here and those might not be appropriate
+        const justMineSweeperCookie = extractCookieByName(
+            document.cookie,
+            cookieName,
+        );
+
+        navigator.serviceWorker.ready.then((registration) => {
+            console.log("Service worker readied");
+            if (!registration.active)
+                throw new Error("Registration not active to send cookies");
+            registration.active.postMessage({
+                // See security note question on message listener
+                type: "be-nice-with-my-cookies",
+                cookie: justMineSweeperCookie,
+            });
+        });
+
         const registration = await navigator.serviceWorker.register(
-            "/service-worker.js",
+            "service-worker.js",
             {
                 scope: "/",
             },
@@ -27,24 +52,5 @@ const registerServiceWorker = async () => {
         console.error(`Registration failed with ${error}`, error);
     }
 };
-
-navigator.serviceWorker.addEventListener("controllerchange", (event) => {
-    console.log("controllerchange", event);
-});
-// TODO: This is probably the security risk: that I'm manually extracting
-//       just my relevant cookie, but in actuality many other domains may be
-//       accessible to me here and those might not be appropriate
-const justMineSweeperCookie = extractCookieByName(document.cookie, cookieName);
-
-navigator.serviceWorker.ready.then((registration) => {
-    console.log("Service worker readied");
-    if (!registration.active)
-        throw new Error("Registration not active to send cookies");
-    registration.active.postMessage({
-        // See security note question on message listener
-        type: "be-nice-with-my-cookies",
-        cookie: justMineSweeperCookie,
-    });
-});
 
 registerServiceWorker();

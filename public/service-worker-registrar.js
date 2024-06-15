@@ -21,7 +21,20 @@ var registerServiceWorker = async () => {
     return;
   }
   try {
-    const registration = await navigator.serviceWorker.register("/service-worker.js", {
+    navigator.serviceWorker.addEventListener("controllerchange", (event) => {
+      console.log("controllerchange", event);
+    });
+    const justMineSweeperCookie = extractCookieByName(document.cookie, cookieName);
+    navigator.serviceWorker.ready.then((registration2) => {
+      console.log("Service worker readied");
+      if (!registration2.active)
+        throw new Error("Registration not active to send cookies");
+      registration2.active.postMessage({
+        type: "be-nice-with-my-cookies",
+        cookie: justMineSweeperCookie
+      });
+    });
+    const registration = await navigator.serviceWorker.register("service-worker.js", {
       scope: "/"
     });
     if (registration.installing) {
@@ -35,17 +48,4 @@ var registerServiceWorker = async () => {
     console.error(`Registration failed with ${error}`, error);
   }
 };
-navigator.serviceWorker.addEventListener("controllerchange", (event) => {
-  console.log("controllerchange", event);
-});
-var justMineSweeperCookie = extractCookieByName(document.cookie, cookieName);
-navigator.serviceWorker.ready.then((registration) => {
-  console.log("Service worker readied");
-  if (!registration.active)
-    throw new Error("Registration not active to send cookies");
-  registration.active.postMessage({
-    type: "be-nice-with-my-cookies",
-    cookie: justMineSweeperCookie
-  });
-});
 registerServiceWorker();
