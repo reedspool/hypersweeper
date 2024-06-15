@@ -2,6 +2,7 @@
 var randInt = (max) => Math.floor(Math.random() * max);
 var randIntBetween = (min, max) => randInt(max - min) + min;
 var wait = (millis) => new Promise((resolve) => setTimeout(() => resolve(null), millis));
+var htmlifyJson = (obj) => JSON.stringify(obj).replaceAll('"', "&quot;");
 
 // game.ts
 var DEFAULTS = {
@@ -172,11 +173,7 @@ var EmptyCellContents = ({ touchingMines }) => html`
     ${touchingMines === 0 ? "" : touchingMines}
 `;
 var MysteryCellContents = (cell) => html`
-    <button
-        type="submit"
-        name="selected"
-        value="${JSON.stringify(cell).replaceAll('"', "&quot;")}"
-    ></button>
+    <button type="submit" name="selected" value="${htmlifyJson(cell)}"></button>
 `;
 var GridCell = (cell) => html`<div
         class="grid__cell grid__cell--${cell.type} grid__cell--${cell.revealed ? "revealed" : "hidden"}"
@@ -185,11 +182,7 @@ var GridCell = (cell) => html`<div
         data-revealed="${cell.revealed}"
         data-type="${cell.type}"
     >
-        <input
-            name="grid__cell"
-            type="hidden"
-            value="${JSON.stringify(cell).replaceAll('"', "&quot;")}"
-        />
+        <input name="grid__cell" type="hidden" value="${htmlifyJson(cell)}" />
         ${!cell.revealed ? MysteryCellContents(cell) : cell.type === "empty" ? EmptyCellContents(cell) : cell.type === "flag" ? FlagCellContents(cell) : cell.type === "question" ? QuestionCellContents(cell) : MineCellContents(cell)}
     </div>`;
 var GridRow = ({
@@ -309,9 +302,7 @@ var handleIndex = (req, res) => {
     }
     contents = NewGameForm(cookieData);
   }
-  res.send(Page({
-    contents
-  }));
+  res.send(Page({ contents }));
 };
 var handleNewGameForm = (req, res) => {
   let cookieData = { ...DEFAULTS };

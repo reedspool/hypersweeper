@@ -33,11 +33,7 @@ const handleIndex: MyRequestHandler = (req, res) => {
         contents = NewGameForm(cookieData);
     }
 
-    res.send(
-        Page({
-            contents,
-        }),
-    );
+    res.send(Page({ contents }));
 };
 
 const handleNewGameForm: MyRequestHandler = (req, res) => {

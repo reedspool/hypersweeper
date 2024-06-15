@@ -60,7 +60,9 @@ button {
     /* background-color: lightgray; */
 }
 
-.grid__cell.grid__cell--hidden {
+.grid__cell.grid__cell--hidden:hover,
+.grid__cell.grid__cell--hidden button:hover {
+    background-color: #b8b8b8;
 }
 
 .toast {

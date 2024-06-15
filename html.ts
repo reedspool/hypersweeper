@@ -8,6 +8,7 @@ import type {
     Mine,
     Question,
 } from "./types";
+import { htmlifyJson } from "./utilities";
 
 // See https://prettier.io/blog/2020/08/24/2.1.0.html
 const html: typeof String.raw = (templates, ...args) =>
@@ -110,11 +111,7 @@ export const EmptyCellContents = ({ touchingMines }: Empty) => html`
     ${touchingMines === 0 ? "" : touchingMines}
 `;
 export const MysteryCellContents = (cell: GridCellType) => html`
-    <button
-        type="submit"
-        name="selected"
-        value="${JSON.stringify(cell).replaceAll('"', "&quot;")}"
-    ></button>
+    <button type="submit" name="selected" value="${htmlifyJson(cell)}"></button>
 `;
 export const GridCell = (cell: GridCellType) =>
     html`<div
@@ -126,11 +123,7 @@ export const GridCell = (cell: GridCellType) =>
         data-revealed="${cell.revealed}"
         data-type="${cell.type}"
     >
-        <input
-            name="grid__cell"
-            type="hidden"
-            value="${JSON.stringify(cell).replaceAll('"', "&quot;")}"
-        />
+        <input name="grid__cell" type="hidden" value="${htmlifyJson(cell)}" />
         ${!cell.revealed
             ? MysteryCellContents(cell)
             : cell.type === "empty"
