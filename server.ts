@@ -4,6 +4,7 @@ import { DEFAULTS, newGrid, select } from "./game";
 import { GameState, LoadingNewGameForm, NewGameForm, Page } from "./html";
 import {
     cellListToGameState,
+    cookieToSettings,
     gameStateToHtml,
     gridToHtml,
     queryToSettings,
@@ -24,12 +25,7 @@ const handleIndex: MyRequestHandler = (req, res) => {
     if (req.context === "serviceWorker") {
         contents = LoadingNewGameForm();
     } else {
-        let cookieData = { ...DEFAULTS };
-        try {
-            cookieData = JSON.parse(req.cookies[cookieName]);
-        } catch (error) {
-            // Do nothing, just use defaults, maybe add telemetry in the future
-        }
+        const cookieData = cookieToSettings(req.cookies[cookieName]);
         contents = NewGameForm(cookieData);
     }
 
@@ -37,12 +33,7 @@ const handleIndex: MyRequestHandler = (req, res) => {
 };
 
 const handleNewGameForm: MyRequestHandler = (req, res) => {
-    let cookieData = { ...DEFAULTS };
-    try {
-        cookieData = JSON.parse(req.cookies[cookieName]);
-    } catch (error) {
-        // Do nothing, just use defaults, maybe add telemetry in the future
-    }
+    const cookieData = cookieToSettings(req.cookies[cookieName]);
     res.send(NewGameForm(cookieData));
 };
 

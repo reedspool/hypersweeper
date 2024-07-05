@@ -209,6 +209,16 @@ var GameState = ({
 }) => contents + stateMessage;
 
 // munge.ts
+var cookieToSettings = (cookie) => {
+  let cookieData = { ...DEFAULTS };
+  try {
+    const cookieDataParsed = JSON.parse(cookie);
+    if (cookieDataParsed)
+      cookieData = cookieDataParsed;
+  } catch (error) {
+  }
+  return cookieData;
+};
 var queryToSettings = ({
   rows,
   cols,
@@ -295,21 +305,13 @@ var handleIndex = (req, res) => {
   if (req.context === "serviceWorker") {
     contents = LoadingNewGameForm();
   } else {
-    let cookieData = { ...DEFAULTS };
-    try {
-      cookieData = JSON.parse(req.cookies[cookieName]);
-    } catch (error) {
-    }
+    const cookieData = cookieToSettings(req.cookies[cookieName]);
     contents = NewGameForm(cookieData);
   }
   res.send(Page({ contents }));
 };
 var handleNewGameForm = (req, res) => {
-  let cookieData = { ...DEFAULTS };
-  try {
-    cookieData = JSON.parse(req.cookies[cookieName]);
-  } catch (error) {
-  }
+  const cookieData = cookieToSettings(req.cookies[cookieName]);
   res.send(NewGameForm(cookieData));
 };
 var handleNewGame = (req, res) => {

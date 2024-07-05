@@ -2,6 +2,17 @@ import type * as Type from "./types";
 import * as HTML from "./html";
 import { DEFAULTS } from "./game";
 
+export const cookieToSettings = (cookie: string): Type.GameSettings => {
+    let cookieData = { ...DEFAULTS };
+    try {
+        const cookieDataParsed = JSON.parse(cookie);
+        if (cookieDataParsed) cookieData = cookieDataParsed;
+    } catch (error) {
+        // Do nothing, just use defaults, maybe add telemetry in the future
+    }
+    return cookieData;
+};
+
 export const queryToSettings = ({
     rows,
     cols,
